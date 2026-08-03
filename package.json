@@ -1,0 +1,26 @@
+{
+  "name": "pi-memory",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "A persistent, file-based memory architecture for the pi coding agent",
+  "scripts": {
+    "test": "node test/run.ts"
+  },
+  "pi": {
+    "extensions": [
+      "./extension/index.ts"
+    ]
+  },
+  "dependencies": {
+    "@earendil-works/pi-ai": "^0.83.0",
+    "@earendil-works/pi-coding-agent": "^0.83.0"
+  },
+  "overrides": {
+    "@earendil-works/pi-coding-agent": {
+      "minimatch": {
+        "brace-expansion": "^5.0.9"
+      }
+    }
+  }
+}
