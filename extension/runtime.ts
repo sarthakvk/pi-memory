@@ -26,7 +26,12 @@ import {
 } from "./inject.ts";
 import { diagnose, renderFindings } from "./doctor.ts";
 import { buildPolicyPrompt } from "./prompts.ts";
-import { pinnedCandidates, scanAll, type MemoryFile, type MemoryScope } from "./scan.ts";
+import {
+  pinnedCandidates,
+  scanAll,
+  type MemoryFile,
+  type MemoryScope,
+} from "./scan.ts";
 import {
   SelectorConversation,
   SessionBudget,
@@ -105,10 +110,14 @@ function ensureDir(path: string): void {
 }
 
 /** Scope roots that actually exist on disk right now. */
-export function liveRoots(s: SessionState): Array<{ root: string; scope: MemoryScope }> {
+export function liveRoots(
+  s: SessionState,
+): Array<{ root: string; scope: MemoryScope }> {
   const roots: Array<{ root: string; scope: MemoryScope }> = [];
-  if (existsSync(s.dirs.privateDir)) roots.push({ root: s.dirs.privateDir, scope: "private" });
-  if (s.teamDir && existsSync(s.teamDir)) roots.push({ root: s.teamDir, scope: "project" });
+  if (existsSync(s.dirs.privateDir))
+    roots.push({ root: s.dirs.privateDir, scope: "private" });
+  if (s.teamDir && existsSync(s.teamDir))
+    roots.push({ root: s.teamDir, scope: "project" });
   return roots;
 }
 
@@ -125,13 +134,19 @@ export function rescan(s: SessionState): void {
  * Build session state. Returns undefined when the extension is switched off.
  * `configDir` defaults to pi's agent directory.
  */
-export function initSession(cwd: string, configDir = agentDir()): SessionState | undefined {
+export function initSession(
+  cwd: string,
+  configDir = agentDir(),
+): SessionState | undefined {
   const config = loadConfig(configDir);
   if (!config.enabled || disabledByEnv()) return undefined;
 
   const dirs = resolveDirs(config, cwd);
   ensureDir(dirs.privateDir);
-  const teamDir = dirs.projectDir && existsSync(dirs.projectDir) ? dirs.projectDir : undefined;
+  const teamDir =
+    dirs.projectDir && existsSync(dirs.projectDir)
+      ? dirs.projectDir
+      : undefined;
 
   const s: SessionState = {
     config,
@@ -161,7 +176,10 @@ export const NO_SELECTION: SelectorRunResult = {
  * Attach a selector to the session. `index.ts` calls this once it has resolved
  * a model and credentials; tests pass a mock `CompleteFn`.
  */
-export function attachSelector(s: SessionState, complete: CompleteFn): SelectorConversation {
+export function attachSelector(
+  s: SessionState,
+  complete: CompleteFn,
+): SelectorConversation {
   s.selector = new SelectorConversation(complete, {
     maxSelected: s.config.selector.maxSelected,
     timeoutMs: s.config.selector.timeoutMs,
@@ -180,7 +198,8 @@ export async function runSelector(
 ): Promise<SelectorRunResult> {
   if (!s.config.selector.enabled) return NO_SELECTION;
   if (s.selectorDisabledReason) return NO_SELECTION;
-  if (s.budget.exhausted) return { ...NO_SELECTION, reason: "budget-exhausted" };
+  if (s.budget.exhausted)
+    return { ...NO_SELECTION, reason: "budget-exhausted" };
   if (!s.selector) return NO_SELECTION;
 
   s.selector.seed(s.files.map(toListingEntry));
@@ -219,7 +238,6 @@ export function buildInjection(
     teamDir: s.teamDir,
     indexMaxLines: s.config.indexMaxLines,
     maxPinned: s.config.maxPinned,
-    citeMemories: s.config.citeMemories,
   });
 
   const index = indexSection(s.dirs.indexPath, s.config);
@@ -231,8 +249,14 @@ export function buildInjection(
   });
 
   const surfaced = readForSurfacing(
-    selection.selected.map((e) => ({ filePath: e.filePath, mtimeMs: e.mtimeMs })),
-    { fileMaxLines: s.config.fileMaxLines, fileMaxBytes: s.config.fileMaxBytes },
+    selection.selected.map((e) => ({
+      filePath: e.filePath,
+      mtimeMs: e.mtimeMs,
+    })),
+    {
+      fileMaxLines: s.config.fileMaxLines,
+      fileMaxBytes: s.config.fileMaxBytes,
+    },
   );
 
   const selectedBytes = surfaced.reduce((n, m) => n + m.bytes, 0);
@@ -253,7 +277,9 @@ export function buildInjection(
     selectedBytes,
     selectorReason: selection.reason,
     selectorLatencyMs: selection.latencyMs,
-    indexTruncated: Boolean(index.truncation?.wasLineTruncated || index.truncation?.wasByteTruncated),
+    indexTruncated: Boolean(
+      index.truncation?.wasLineTruncated || index.truncation?.wasByteTruncated,
+    ),
     scanned: s.files.length,
     dropped: s.dropped,
   };
@@ -298,7 +324,11 @@ function ageLabel(mtimeMs: number, now = Date.now()): string {
 
 export function renderList(s: SessionState, now = Date.now()): string[] {
   if (s.files.length === 0) {
-    return ["No memories found.", `  private: ${s.dirs.privateDir}`, `  team:    ${s.teamDir ?? "(none)"}`];
+    return [
+      "No memories found.",
+      `  private: ${s.dirs.privateDir}`,
+      `  team:    ${s.teamDir ?? "(none)"}`,
+    ];
   }
   const lines: string[] = [
     `${s.files.length} memories (private: ${s.dirs.privateDir}${s.teamDir ? `, team: ${s.teamDir}` : ""})`,
@@ -306,12 +336,24 @@ export function renderList(s: SessionState, now = Date.now()): string[] {
   let totalBytes = 0;
   for (const f of s.files) {
     totalBytes += f.bytes;
-    const pin = f.pinnedState === "true" ? " [pinned]" : f.pinnedState === "malformed" ? " [pinned?]" : "";
+    const pin =
+      f.pinnedState === "true"
+        ? " [pinned]"
+        : f.pinnedState === "malformed"
+          ? " [pinned?]"
+          : "";
     const type = f.type ? `[${f.type}] ` : "";
-    lines.push(`  ${type}${f.filename}${pin}  ${f.bytes}B  ${ageLabel(f.mtimeMs, now)}`);
-    lines.push(`      ${f.description ?? "(no description — invisible to the selector)"}`);
+    lines.push(
+      `  ${type}${f.filename}${pin}  ${f.bytes}B  ${ageLabel(f.mtimeMs, now)}`,
+    );
+    lines.push(
+      `      ${f.description ?? "(no description — invisible to the selector)"}`,
+    );
   }
-  lines.push(`total ${totalBytes}B` + (s.dropped > 0 ? `, ${s.dropped} dropped by maxFiles` : ""));
+  lines.push(
+    `total ${totalBytes}B` +
+      (s.dropped > 0 ? `, ${s.dropped} dropped by maxFiles` : ""),
+  );
   return lines;
 }
 
@@ -331,10 +373,14 @@ export function renderWhy(s: SessionState): string[] {
 export function renderBudget(s: SessionState): string[] {
   const lines = [
     `Session recall budget: ${s.budget.bytes}B / ${s.budget.max}B` +
-      (s.budget.exhausted ? "  — EXHAUSTED, recall is off for this session" : ""),
+      (s.budget.exhausted
+        ? "  — EXHAUSTED, recall is off for this session"
+        : ""),
     "Pinned injection is unaffected by the budget.",
     `Scanned files: ${s.files.length}${
-      s.dropped > 0 ? ` (+${s.dropped} dropped by maxFiles=${s.config.maxFiles})` : ""
+      s.dropped > 0
+        ? ` (+${s.dropped} dropped by maxFiles=${s.config.maxFiles})`
+        : ""
     }`,
   ];
   const c = s.counters;
@@ -342,16 +388,22 @@ export function renderBudget(s: SessionState): string[] {
     `Counters: turns ${c.turns}, scans ${c.scans}, files ${c.filesScanned}` +
       (c.filesDropped > 0 ? ` (+${c.filesDropped} dropped)` : "") +
       `, pinned ${c.pinnedInjected}, surfaced ${c.surfacedMemories} (${c.surfacedBytes}B)` +
-      (c.turnsWithNoScope > 0 ? `, ${c.turnsWithNoScope} turns with no scope root` : ""),
+      (c.turnsWithNoScope > 0
+        ? `, ${c.turnsWithNoScope} turns with no scope root`
+        : ""),
   );
-  if (s.selectorDisabledReason) lines.push(`Selector disabled: ${s.selectorDisabledReason}`);
-  else if (!s.config.selector.enabled) lines.push("Selector disabled by config.");
+  if (s.selectorDisabledReason)
+    lines.push(`Selector disabled: ${s.selectorDisabledReason}`);
+  else if (!s.config.selector.enabled)
+    lines.push("Selector disabled by config.");
   const stats = s.selector?.stats;
   if (stats) {
     lines.push(
       `Selector calls: ${stats.calls}, failures ${stats.failures}, timeouts ${stats.timeouts}, ` +
         `truncated ${stats.truncated}, empty ${stats.emptyResults}` +
-        (stats.lastLatencyMs !== undefined ? `, last ${stats.lastLatencyMs}ms` : ""),
+        (stats.lastLatencyMs !== undefined
+          ? `, last ${stats.lastLatencyMs}ms`
+          : ""),
     );
     if (stats.lastError) lines.push(`Last selector error: ${stats.lastError}`);
   }
@@ -372,14 +424,18 @@ export async function renderDryRun(
     `  selected: ${result.selected.length > 0 ? result.selected.map((e) => e.filename).join(", ") : "(none)"}`,
     `  answer:   ${result.answerText ?? "(none)"}`,
     "  listing sent:",
-    ...(result.listing ? result.listing.split("\n").map((l) => `    ${l}`) : ["    (empty)"]),
+    ...(result.listing
+      ? result.listing.split("\n").map((l) => `    ${l}`)
+      : ["    (empty)"]),
   ];
 }
 
 /** Write-path invariants. Never modifies a file. */
 export function renderDoctor(s: SessionState): string[] {
   rescan(s);
-  return renderFindings(diagnose({ files: s.files, indexPath: s.dirs.indexPath }));
+  return renderFindings(
+    diagnose({ files: s.files, indexPath: s.dirs.indexPath }),
+  );
 }
 
 export const USAGE = [
