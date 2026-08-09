@@ -67,7 +67,7 @@ function conversation(complete: CompleteFn, maxSelected = 5, timeoutMs = 5000): 
 
 // --- schema / tool ---------------------------------------------------------
 
-test("REQ-SELECT-8", "the tool parameter schema is the documented output contract", () => {
+test("the tool parameter schema is the documented output contract", () => {
   assertDeepEqual(SELECTOR_SCHEMA, {
     type: "object",
     properties: { selected_memories: { type: "array", items: { type: "string" } } },
@@ -77,7 +77,7 @@ test("REQ-SELECT-8", "the tool parameter schema is the documented output contrac
   assertEqual(SELECTOR_TOOL.constrainedSampling.type, "json_schema");
 });
 
-test("REQ-SELECT-8", "constrained sampling is 'prefer' so unsupported providers degrade", () => {
+test("constrained sampling is 'prefer' so unsupported providers degrade", () => {
   // pi-ai's resolveJsonSchemaStrictSampling THROWS on "require" when the model
   // reports no strict-tool support, and Anthropic defaults supportsStrictTools
   // to false. "require" would therefore break the selector outright for any
@@ -85,13 +85,13 @@ test("REQ-SELECT-8", "constrained sampling is 'prefer' so unsupported providers 
   assertEqual(SELECTOR_TOOL.constrainedSampling.strict, "prefer");
 });
 
-test("REQ-SELECT-10", "max_tokens is 512", () => {
+test("max_tokens is 512", () => {
   assertEqual(SELECTOR_MAX_TOKENS, 512);
 });
 
 // --- listing ---------------------------------------------------------------
 
-test("REQ-SELECT-3", "the listing format is the one SPEC.md documents", () => {
+test("the listing format matches the expected output", () => {
   const listing = formatListing(ENTRIES);
   const lines = listing.split("\n");
   assertEqual(
@@ -103,7 +103,7 @@ test("REQ-SELECT-3", "the listing format is the one SPEC.md documents", () => {
 
 // --- query gating ----------------------------------------------------------
 
-test("REQ-SELECT-14", "a whitespace-free query is not worth a selector call", () => {
+test("a whitespace-free query is not worth a selector call", () => {
   assertEqual(queryIsSelectable("how do I run the tests"), true);
   assertEqual(queryIsSelectable("  hello world  "), true);
   assertEqual(queryIsSelectable("tests"), false);
@@ -115,7 +115,7 @@ test("REQ-SELECT-14", "a whitespace-free query is not worth a selector call", ()
 
 // --- parsing ---------------------------------------------------------------
 
-test("REQ-SELECT-8", "a tool call is the primary extraction path", () => {
+test("a tool call is the primary extraction path", () => {
   const r = extractSelection({
     stopReason: "toolUse",
     content: [
@@ -125,7 +125,7 @@ test("REQ-SELECT-8", "a tool call is the primary extraction path", () => {
   assertDeepEqual(r?.raw, ["a.md"]);
 });
 
-test("REQ-SELECT-8", "a tool call with another name is ignored", () => {
+test("a tool call with another name is ignored", () => {
   const r = extractSelection({
     stopReason: "toolUse",
     content: [{ type: "toolCall", id: "1", name: "something_else", arguments: { selected_memories: ["a.md"] } }],
@@ -133,7 +133,7 @@ test("REQ-SELECT-8", "a tool call with another name is ignored", () => {
   assertEqual(r, null);
 });
 
-test("REQ-SELECT-12", "a text block carrying JSON is the fallback path", () => {
+test("a text block carrying JSON is the fallback path", () => {
   const r = extractSelection({
     stopReason: "stop",
     content: [{ type: "text", text: 'Here you go:\n{"selected_memories": ["a.md", "b.md"]}\nHope that helps.' }],
@@ -141,7 +141,7 @@ test("REQ-SELECT-12", "a text block carrying JSON is the fallback path", () => {
   assertDeepEqual(r?.raw, ["a.md", "b.md"]);
 });
 
-test("REQ-SELECT-11", "stopReason length yields no selection", () => {
+test("stopReason length yields no selection", () => {
   const r = extractSelection({
     stopReason: "length",
     content: [{ type: "toolCall", id: "1", name: SELECTOR_TOOL_NAME, arguments: { selected_memories: ["a.md"] } }],
@@ -149,12 +149,12 @@ test("REQ-SELECT-11", "stopReason length yields no selection", () => {
   assertEqual(r, null, "a truncated response is discarded even if it looks parseable");
 });
 
-test("REQ-SELECT-12", "a response with no text and no tool call yields no selection", () => {
+test("a response with no text and no tool call yields no selection", () => {
   assertEqual(extractSelection({ stopReason: "stop", content: [] }), null);
   assertEqual(extractSelection({ stopReason: "stop", content: [{ type: "thinking" }] }), null);
 });
 
-test("REQ-FAIL-1", "malformed JSON and wrong shapes are rejected", () => {
+test("malformed JSON and wrong shapes are rejected", () => {
   assertEqual(extractSelection({ stopReason: "stop", content: [{ type: "text", text: "{not json" }] }), null);
   assertEqual(extractSelection({ stopReason: "stop", content: [{ type: "text", text: "no braces here" }] }), null);
   assertEqual(validateSelection({ selected_memories: "a.md" }), null);
@@ -163,7 +163,7 @@ test("REQ-FAIL-1", "malformed JSON and wrong shapes are rejected", () => {
   assertDeepEqual(validateSelection({ selected_memories: ["a.md", 7, null] }), ["a.md"]);
 });
 
-test("REQ-SELECT-12", "firstJsonObject handles nesting, strings and braces", () => {
+test("firstJsonObject handles nesting, strings and braces", () => {
   assertEqual(firstJsonObject('x {"a": {"b": 1}} y'), '{"a": {"b": 1}}');
   assertEqual(firstJsonObject('{"a": "}"}'), '{"a": "}"}');
   assertEqual(firstJsonObject('{"a": "\\""}'), '{"a": "\\""}');
@@ -172,19 +172,19 @@ test("REQ-SELECT-12", "firstJsonObject handles nesting, strings and braces", () 
 
 // --- filename resolution ---------------------------------------------------
 
-test("REQ-SELECT-8", "unknown filenames are discarded silently", () => {
+test("unknown filenames are discarded silently", () => {
   const known = new Map(ENTRIES.map((e) => [e.filename, e]));
   const out = resolveFilenames(["testing-scripts.md", "hallucinated.md", "user-role.md"], known);
   assertDeepEqual(out.map((e) => e.filename), ["testing-scripts.md", "user-role.md"]);
 });
 
-test("REQ-SELECT-8", "a leading [type] prefix is stripped before matching", () => {
+test("a leading [type] prefix is stripped before matching", () => {
   const known = new Map(ENTRIES.map((e) => [e.filename, e]));
   const out = resolveFilenames(["[project] testing-scripts.md", "[user] user-role.md"], known);
   assertDeepEqual(out.map((e) => e.filename), ["testing-scripts.md", "user-role.md"]);
 });
 
-test("REQ-SELECT-8", "duplicates in the response collapse", () => {
+test("duplicates in the response collapse", () => {
   const known = new Map(ENTRIES.map((e) => [e.filename, e]));
   const out = resolveFilenames(["user-role.md", "user-role.md", "[user] user-role.md"], known);
   assertEqual(out.length, 1);
@@ -192,7 +192,7 @@ test("REQ-SELECT-8", "duplicates in the response collapse", () => {
 
 // --- conversation ----------------------------------------------------------
 
-test(["REQ-SELECT-2", "REQ-SELECT-4", "REQ-SELECT-5"], "the conversation shape matches SPEC.md §5.4", async () => {
+test("the conversation shape matches the expected protocol", async () => {
   const capture: { last?: CompleteArgs } = {};
   const c = conversation(toolCallProvider(["testing-scripts.md"], capture));
   await c.run("how do I run the tests");
@@ -211,7 +211,7 @@ test(["REQ-SELECT-2", "REQ-SELECT-4", "REQ-SELECT-5"], "the conversation shape m
   );
 });
 
-test("REQ-SELECT-6", "history accumulates so the model can honour do-not-re-select", async () => {
+test("history accumulates so the model can honour do-not-re-select", async () => {
   const capture: { last?: CompleteArgs } = {};
   const c = conversation(toolCallProvider([], capture));
   await c.run("first question here");
@@ -229,7 +229,7 @@ test("REQ-SELECT-6", "history accumulates so the model can honour do-not-re-sele
   assertEqual(c.turnCount, 2);
 });
 
-test("REQ-SELECT-9", "a memory surfaced once is never selected again", async () => {
+test("a memory surfaced once is never selected again", async () => {
   const c = conversation(toolCallProvider(["testing-scripts.md", "user-role.md"]));
   const first = await c.run("what is the test command");
   assertDeepEqual(first.selected.map((e) => e.filename), ["testing-scripts.md", "user-role.md"]);
@@ -239,7 +239,7 @@ test("REQ-SELECT-9", "a memory surfaced once is never selected again", async () 
   assertEqual(second.selected.length, 0, "already-surfaced memories are filtered out");
 });
 
-test("REQ-SELECT-15", "no candidates left means no call at all", async () => {
+test("no candidates left means no call at all", async () => {
   let called = 0;
   const c = conversation(async () => {
     called++;
@@ -251,7 +251,7 @@ test("REQ-SELECT-15", "no candidates left means no call at all", async () => {
   assertEqual(called, 0, "the provider must not be called");
 });
 
-test("REQ-SELECT-15", "an unseeded conversation makes no call", async () => {
+test("an unseeded conversation makes no call", async () => {
   let called = 0;
   const c = new SelectorConversation(
     async () => {
@@ -265,7 +265,7 @@ test("REQ-SELECT-15", "an unseeded conversation makes no call", async () => {
   assertEqual(called, 0);
 });
 
-test("REQ-SELECT-14", "a one-token query short-circuits before the call", async () => {
+test("a one-token query short-circuits before the call", async () => {
   let called = 0;
   const c = conversation(async () => {
     called++;
@@ -276,7 +276,7 @@ test("REQ-SELECT-14", "a one-token query short-circuits before the call", async 
   assertEqual(called, 0);
 });
 
-test("REQ-SELECT-7", "the result is capped at maxSelected", async () => {
+test("the result is capped at maxSelected", async () => {
   const c = conversation(
     toolCallProvider(["testing-scripts.md", "user-role.md", "terse-replies.md", "no-desc.md"]),
     2,
@@ -285,7 +285,7 @@ test("REQ-SELECT-7", "the result is capped at maxSelected", async () => {
   assertEqual(r.selected.length, 2);
 });
 
-test(["REQ-SELECT-13", "REQ-FAIL-1"], "a slow provider times out and yields an empty selection", async () => {
+test("a slow provider times out and yields an empty selection", async () => {
   const c = conversation(
     (args) =>
       new Promise((_resolve, reject) => {
@@ -300,7 +300,7 @@ test(["REQ-SELECT-13", "REQ-FAIL-1"], "a slow provider times out and yields an e
   assertEqual(c.stats.timeouts, 1);
 });
 
-test("REQ-FAIL-1", "a throwing provider yields an empty selection", async () => {
+test("a throwing provider yields an empty selection", async () => {
   const c = conversation(async () => {
     throw new Error("network down");
   });
@@ -311,7 +311,7 @@ test("REQ-FAIL-1", "a throwing provider yields an empty selection", async () => 
   assertEqual(c.stats.lastError, "network down");
 });
 
-test(["REQ-SELECT-11", "REQ-FAIL-1"], "a truncated response yields an empty selection", async () => {
+test("a truncated response yields an empty selection", async () => {
   const c = conversation(async () => ({
     stopReason: "length",
     content: [{ type: "text", text: '{"selected_memories": ["user-role.md"]}' }],
@@ -322,7 +322,7 @@ test(["REQ-SELECT-11", "REQ-FAIL-1"], "a truncated response yields an empty sele
   assertEqual(c.stats.truncated, 1);
 });
 
-test("REQ-SELECT-16", "a failed call leaves the history untouched", async () => {
+test("a failed call leaves the history untouched", async () => {
   const capture: { last?: CompleteArgs } = {};
   let fail = true;
   const c = conversation(async (args) => {
@@ -342,7 +342,7 @@ test("REQ-SELECT-16", "a failed call leaves the history untouched", async () => 
   assertEqual(capture.last?.messages.length, 2, "history still holds only the listing plus this query");
 });
 
-test("REQ-SELECT-2", "re-seeding replaces the listing but keeps accumulated turns", async () => {
+test("re-seeding replaces the listing but keeps accumulated turns", async () => {
   const capture: { last?: CompleteArgs } = {};
   const c = conversation(toolCallProvider([], capture));
   await c.run("a first query here");
@@ -354,7 +354,7 @@ test("REQ-SELECT-2", "re-seeding replaces the listing but keeps accumulated turn
   assertIncludes((args.messages[0].content[0] as { text: string }).text, "added.md");
 });
 
-test("REQ-SELECT-1", "dry-run style access to the listing and raw answer", async () => {
+test("dry-run style access to the listing and raw answer", async () => {
   const c = conversation(toolCallProvider(["user-role.md"]));
   const r = await c.run("tell me about the user");
   assertEqual(r.reason, "ok");
@@ -365,7 +365,7 @@ test("REQ-SELECT-1", "dry-run style access to the listing and raw answer", async
 
 // --- budget ----------------------------------------------------------------
 
-test("REQ-LIMIT-1", "the session budget latches once consumed bytes reach the cap", () => {
+test("the session budget latches once consumed bytes reach the cap", () => {
   const b = new SessionBudget(100);
   assertEqual(b.exhausted, false);
   b.add(60);
@@ -377,7 +377,7 @@ test("REQ-LIMIT-1", "the session budget latches once consumed bytes reach the ca
   assertEqual(b.exhausted, false);
 });
 
-test("REQ-LIMIT-6", "budget accounting is over UTF-8 bytes", () => {
+test("budget accounting is over UTF-8 bytes", () => {
   const b = new SessionBudget(10);
   b.add(Buffer.byteLength("héllo", "utf8"));
   assertEqual(b.bytes, 6, "é is two bytes in UTF-8, not one UTF-16 unit");

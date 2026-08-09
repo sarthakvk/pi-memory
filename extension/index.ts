@@ -4,7 +4,7 @@
  * This is the only module that imports pi or pi-ai. It owns the hooks, the
  * `/memory` command, and the provider wiring; everything else lives in
  * `runtime.ts` and its dependencies, which import nothing but `node:*` so the
- * whole pipeline stays headlessly testable (SPEC.md §11).
+ * whole pipeline stays headlessly testable.
  */
 
 import { complete } from "@earendil-works/pi-ai/compat";
@@ -30,7 +30,7 @@ let state: SessionState | undefined;
 
 /**
  * Equivalent of pi's `findExactModelReferenceMatch`, which is not exported to
- * extensions (SPEC.md §5.2). Accepts `provider/modelId` or a bare `modelId`;
+ * extensions. Accepts `provider/modelId` or a bare `modelId`;
  * an ambiguous bare id is rejected rather than guessed at.
  */
 export function findModel(reference: string, available: Model<Api>[]): Model<Api> | undefined {
@@ -41,8 +41,8 @@ export function findModel(reference: string, available: Model<Api>[]): Model<Api
 }
 
 /**
- * Build the `CompleteFn` the selector drives, or explain why we cannot
- * (REQ-FAIL-2). Uses the pattern from pi's own `examples/extensions/summarize.ts`.
+ * Build the `CompleteFn` the selector drives, or explain why we cannot.
+ * Uses the pattern from pi's own `examples/extensions/summarize.ts`.
  */
 async function makeCompleteFn(
   ctx: ExtensionContext,
@@ -71,7 +71,7 @@ async function makeCompleteFn(
       env: auth.env,
       maxTokens: args.maxTokens,
       signal: args.signal,
-      // SPEC.md §5.2: pi-ai places Anthropic-style cache markers itself.
+      // pi-ai places Anthropic-style cache markers itself.
       cacheRetention: "short",
       // Honoured by providers that support it; ignored by the rest, which then
       // fall through to the selector's defensive text-parsing path.
@@ -91,7 +91,7 @@ async function ensureSelector(s: SessionState, ctx: ExtensionContext): Promise<v
   if (!s.config.selector.enabled || s.selectorDisabledReason || s.selector) return;
   const built = await makeCompleteFn(ctx, s.config.selector.model);
   if ("error" in built) {
-    s.selectorDisabledReason = built.error; // REQ-FAIL-2
+    s.selectorDisabledReason = built.error;
     if (ctx.hasUI) ctx.ui.notify(`memory: ${built.error}; recall disabled`, "warning");
     return;
   }
@@ -111,7 +111,7 @@ export default function memoryExtension(pi: ExtensionAPI): void {
     try {
       state = initSession(ctx.cwd);
     } catch {
-      state = undefined; // REQ-FAIL-5
+      state = undefined;
     }
   });
 
@@ -127,7 +127,7 @@ export default function memoryExtension(pi: ExtensionAPI): void {
       const next = await runTurn(s, event.systemPrompt, event.prompt, ctx.signal);
       return next === undefined ? undefined : { systemPrompt: next };
     } catch {
-      return; // REQ-FAIL-5: leave the system prompt exactly as it arrived
+      return; // Leave the system prompt exactly as it arrived.
     }
   });
 

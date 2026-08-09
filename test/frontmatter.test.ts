@@ -1,7 +1,7 @@
 import { assert, assertEqual, test } from "./harness.ts";
 import { NAME_PATTERN, parseMemoryFile } from "../extension/frontmatter.ts";
 
-test("REQ-SCAN-3", "frontmatter fields and nested metadata parse", () => {
+test("frontmatter fields and nested metadata parse", () => {
   const { frontmatter, body } = parseMemoryFile(
     ["---", "name: testing-scripts", "description: how to run tests", "metadata:", "  type: project", "  pinned: true", "---", "", "bun test", ""].join("\n"),
   );
@@ -13,7 +13,7 @@ test("REQ-SCAN-3", "frontmatter fields and nested metadata parse", () => {
   assertEqual(body.trim(), "bun test");
 });
 
-test("REQ-SCAN-8", "a file with no frontmatter yields empty frontmatter and full body", () => {
+test("a file with no frontmatter yields empty frontmatter and full body", () => {
   const { frontmatter, body } = parseMemoryFile("# Just a heading\n\ncontent\n");
   assertEqual(frontmatter.name, null);
   assertEqual(frontmatter.description, null);
@@ -21,7 +21,7 @@ test("REQ-SCAN-8", "a file with no frontmatter yields empty frontmatter and full
   assertEqual(body, "# Just a heading\n\ncontent\n");
 });
 
-test("REQ-SCAN-8", "malformed frontmatter body does not throw", () => {
+test("malformed frontmatter body does not throw", () => {
   const { frontmatter } = parseMemoryFile(
     ["---", "name: ok", "  : : broken", "metadata: [1,2,", "---", "", "body"].join("\n"),
   );
@@ -29,20 +29,20 @@ test("REQ-SCAN-8", "malformed frontmatter body does not throw", () => {
   assertEqual(frontmatter.present, true);
 });
 
-test("REQ-SCAN-7", "unrecognised top-level keys fold into metadata", () => {
+test("unrecognised top-level keys fold into metadata", () => {
   // A top-level `pinned:` behaves like metadata.pinned.
   const { frontmatter } = parseMemoryFile(["---", "name: x", "pinned: true", "---", "", "b"].join("\n"));
   assertEqual(frontmatter.metadata.pinned, true);
 });
 
-test("REQ-SCAN-7", "explicit metadata wins over a folded top-level key", () => {
+test("explicit metadata wins over a folded top-level key", () => {
   const { frontmatter } = parseMemoryFile(
     ["---", "pinned: false", "metadata:", "  pinned: true", "---", "", "b"].join("\n"),
   );
   assertEqual(frontmatter.metadata.pinned, true);
 });
 
-test("REQ-SCAN-3", "quoted values and comments are handled", () => {
+test("quoted values and comments are handled", () => {
   const { frontmatter } = parseMemoryFile(
     ["---", 'description: "a: colon, and # hash"', "metadata:", "  type: user # trailing comment", "---", "", "b"].join("\n"),
   );
@@ -50,12 +50,12 @@ test("REQ-SCAN-3", "quoted values and comments are handled", () => {
   assertEqual(frontmatter.metadata.type, "user");
 });
 
-test("REQ-SCAN-3", "an empty description is treated as absent", () => {
+test("an empty description is treated as absent", () => {
   const { frontmatter } = parseMemoryFile(["---", "description:", "---", "", "b"].join("\n"));
   assertEqual(frontmatter.description, null);
 });
 
-test("REQ-SCAN-11", "the name pattern is the documented slug form", () => {
+test("the name pattern is the documented slug form", () => {
   assert(NAME_PATTERN.test("user-role"), "kebab-case is valid");
   assert(NAME_PATTERN.test("feedback_testing"), "underscores are valid");
   assert(!NAME_PATTERN.test("User-Role"), "uppercase is invalid");

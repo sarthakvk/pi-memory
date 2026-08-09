@@ -4,7 +4,6 @@
  * Memory files are read under two distinct budgets: 30 lines / 65536 bytes
  * when scanning for a description, 200 lines / 4096 bytes when surfacing a
  * body. Truncation happens on the byte limit as well as the line limit.
- * See SPEC.md §3.
  */
 
 import { readFileSync, statSync } from "node:fs";
@@ -39,7 +38,7 @@ export function utf8Length(text: string): number {
 
 /**
  * Read a file with line and byte budgets. Throws only if the file cannot be
- * read at all; callers treat that as "skip this file" (REQ-SCAN-12).
+ * read at all; callers treat that as "skip this file".
  */
 export function readBudgeted(path: string, maxLines: number, maxBytes: number): BudgetedRead {
   const stat = statSync(path);

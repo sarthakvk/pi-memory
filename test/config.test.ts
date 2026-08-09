@@ -10,7 +10,7 @@ import {
   resolveDirs,
 } from "../extension/config.ts";
 
-test("REQ-CFG-1", "defaults apply to every unset key", () => {
+test("defaults apply to every unset key", () => {
   const c = mergeConfig({ maxFiles: 7 });
   assertEqual(c.maxFiles, 7);
   assertEqual(c.maxSessionBytes, DEFAULTS.maxSessionBytes);
@@ -20,14 +20,14 @@ test("REQ-CFG-1", "defaults apply to every unset key", () => {
   assertEqual(c.scanMaxBytes, 65536, "scan byte budget is dRt=65536");
 });
 
-test("REQ-CFG-2", "missing config file yields defaults", () => {
+test("missing config file yields defaults", () => {
   const dir = makeTempDir();
   const c = loadConfig(dir);
   assertEqual(c.enabled, true);
   assertEqual(c.maxFiles, DEFAULTS.maxFiles);
 });
 
-test("REQ-CFG-2", "invalid JSON yields defaults without throwing", () => {
+test("invalid JSON yields defaults without throwing", () => {
   const dir = makeTempDir();
   writeFileSync(join(dir, "memory-config.json"), "{ not json", "utf8");
   const c = loadConfig(dir);
@@ -35,33 +35,33 @@ test("REQ-CFG-2", "invalid JSON yields defaults without throwing", () => {
   assertEqual(c.selector.timeoutMs, DEFAULTS.selector.timeoutMs);
 });
 
-test("REQ-CFG-2", "a non-object config yields defaults", () => {
+test("a non-object config yields defaults", () => {
   assertEqual(mergeConfig(null).maxFiles, DEFAULTS.maxFiles);
   assertEqual(mergeConfig([1, 2]).maxFiles, DEFAULTS.maxFiles);
   assertEqual(mergeConfig("nope").maxFiles, DEFAULTS.maxFiles);
 });
 
-test("REQ-CFG-3", "a wrongly typed key falls back for that key alone", () => {
+test("a wrongly typed key falls back for that key alone", () => {
   const c = mergeConfig({ enabled: "yes", maxFiles: "lots", maxSessionBytes: 100 });
   assertEqual(c.enabled, DEFAULTS.enabled);
   assertEqual(c.maxFiles, DEFAULTS.maxFiles);
   assertEqual(c.maxSessionBytes, 100);
 });
 
-test("REQ-CFG-4", "unknown keys are ignored", () => {
+test("unknown keys are ignored", () => {
   const c = mergeConfig({ nonsense: true, selector: { nonsense: 1, maxSelected: 2 } });
   assertEqual(c.selector.maxSelected, 2);
   assert(!("nonsense" in c), "unknown key must not leak into the config");
 });
 
-test("REQ-CFG-5", "a leading ~ expands to the home directory", () => {
+test("a leading ~ expands to the home directory", () => {
   assertEqual(expandHome("~/x/y", "/home/u"), "/home/u/x/y");
   assertEqual(expandHome("~", "/home/u"), "/home/u");
   assertEqual(expandHome("/abs/path", "/home/u"), "/abs/path");
   assertEqual(expandHome("relative/path", "/home/u"), "relative/path");
 });
 
-test("REQ-CFG-6", "projectDir resolves relative to cwd", () => {
+test("projectDir resolves relative to cwd", () => {
   const dirs = resolveDirs(
     mergeConfig({ dir: "~/.pi/agent/memory", projectDir: ".pi/memory" }),
     "/work/repo",
@@ -72,12 +72,12 @@ test("REQ-CFG-6", "projectDir resolves relative to cwd", () => {
   assertEqual(dirs.indexPath, "/home/u/.pi/agent/memory/MEMORY.md");
 });
 
-test("REQ-CFG-6", "an absolute projectDir is used as-is", () => {
+test("an absolute projectDir is used as-is", () => {
   const dirs = resolveDirs(mergeConfig({ projectDir: "/elsewhere/mem" }), "/work/repo", "/home/u");
   assertEqual(dirs.projectDir, "/elsewhere/mem");
 });
 
-test("REQ-CFG-7", "PI_MEMORY_DISABLED gates the extension", () => {
+test("PI_MEMORY_DISABLED gates the extension", () => {
   assertEqual(disabledByEnv({} as NodeJS.ProcessEnv), false);
   assertEqual(disabledByEnv({ PI_MEMORY_DISABLED: "" } as NodeJS.ProcessEnv), false);
   assertEqual(disabledByEnv({ PI_MEMORY_DISABLED: "0" } as NodeJS.ProcessEnv), false);
@@ -85,13 +85,13 @@ test("REQ-CFG-7", "PI_MEMORY_DISABLED gates the extension", () => {
   assertEqual(disabledByEnv({ PI_MEMORY_DISABLED: "true" } as NodeJS.ProcessEnv), true);
 });
 
-test("REQ-CFG-8", "selector.enabled false does not disable the extension", () => {
+test("selector.enabled false does not disable the extension", () => {
   const c = mergeConfig({ selector: { enabled: false } });
   assertEqual(c.enabled, true);
   assertEqual(c.selector.enabled, false);
 });
 
-test("REQ-CFG-1", "a config file on disk is merged over the defaults", () => {
+test("a config file on disk is merged over the defaults", () => {
   const dir = makeTempDir();
   writeFile(
     join(dir, "memory-config.json"),

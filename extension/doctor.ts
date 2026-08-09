@@ -1,5 +1,5 @@
 /**
- * WRITE — checkable write-path invariants. See SPEC.md §7.1.
+ * WRITE — checkable write-path invariants.
  *
  * The policy prompt tells the model how to write memories; nothing tells it
  * when it got it wrong. These checks turn the silent failure modes — a misfiled
@@ -31,8 +31,8 @@ export interface Finding {
 }
 
 /**
- * REQ-WRITE-14 — pointer extraction. Markdown link targets plus any bare `*.md`
- * token, so a hand-written index line still counts.
+ * Pointer extraction. Markdown link targets plus any bare `*.md` token, so a
+ * hand-written index line still counts.
  */
 export function extractIndexPointers(indexText: string): Set<string> {
   const out = new Set<string>();
@@ -50,8 +50,8 @@ function normalisePointer(p: string): string {
 }
 
 /**
- * REQ-WRITE-17 — reduce a description to its significant-word set so two
- * differently phrased restatements of the same fact collide.
+ * Reduce a description to its significant-word set so two differently phrased
+ * restatements of the same fact collide.
  */
 export function descriptionKey(description: string): string {
   const words = description
@@ -67,7 +67,7 @@ export interface DoctorInput {
   indexPath: string;
 }
 
-/** Run every §7.1 invariant. Returns findings in a stable order. */
+/** Run every write-path invariant. Returns findings in a stable order. */
 export function diagnose(input: DoctorInput): Finding[] {
   const findings: Finding[] = [];
   const { files } = input;
@@ -82,7 +82,6 @@ export function diagnose(input: DoctorInput): Finding[] {
   const known = new Set(files.map((f) => f.filename));
 
   for (const f of files) {
-    // REQ-WRITE-13
     if (f.type === "user" && f.scope === "project") {
       findings.push({
         kind: "scope-violation",
@@ -91,7 +90,6 @@ export function diagnose(input: DoctorInput): Finding[] {
       });
     }
 
-    // REQ-WRITE-15
     if (!f.name) {
       findings.push({
         kind: "bad-name",
@@ -106,7 +104,6 @@ export function diagnose(input: DoctorInput): Finding[] {
       });
     }
 
-    // REQ-WRITE-16
     if (!f.description) {
       findings.push({
         kind: "no-description",
@@ -115,9 +112,8 @@ export function diagnose(input: DoctorInput): Finding[] {
       });
     }
 
-    // REQ-WRITE-14 / REQ-WRITE-19 / REQ-WRITE-21 — a pinned memory should have
-    // no pointer; an unpinned one should have exactly one. Both directions of
-    // the REQ-WRITE-20 transition are caught here.
+    // A pinned memory should have no pointer; an unpinned one should have
+    // exactly one. Both directions of the transition are caught here.
     const indexed = pointers.has(f.filename);
     const pinned = f.pinnedState === "true";
     if (pinned && indexed) {
@@ -135,7 +131,7 @@ export function diagnose(input: DoctorInput): Finding[] {
     }
   }
 
-  // REQ-WRITE-14, the other direction.
+  // Check the other direction.
   for (const pointer of [...pointers].sort()) {
     if (pointer === INDEX_FILENAME) continue;
     if (known.has(pointer)) continue;
@@ -146,7 +142,6 @@ export function diagnose(input: DoctorInput): Finding[] {
     });
   }
 
-  // REQ-WRITE-17
   const byKey = new Map<string, string[]>();
   for (const f of files) {
     if (!f.description) continue;
@@ -171,7 +166,7 @@ export function diagnose(input: DoctorInput): Finding[] {
   return findings;
 }
 
-/** REQ-CMD-3 — render findings for `/memory doctor`. */
+/** Render findings for `/memory doctor`. */
 export function renderFindings(findings: Finding[]): string[] {
   if (findings.length === 0) return ["memory doctor: no findings."];
   const lines = [`memory doctor: ${findings.length} finding${findings.length === 1 ? "" : "s"}`];

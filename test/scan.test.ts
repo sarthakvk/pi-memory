@@ -13,7 +13,7 @@ import {
 
 const SCAN_OPTS = { scanMaxLines: DEFAULTS.scanMaxLines, scanMaxBytes: DEFAULTS.scanMaxBytes };
 
-test("REQ-SCAN-1", "the walk is recursive and markdown-only", () => {
+test("the walk is recursive and markdown-only", () => {
   const root = makeTempDir();
   writeMemory(root, "a.md", { description: "top level" });
   writeMemory(root, "sub/b.md", { description: "nested" });
@@ -25,14 +25,14 @@ test("REQ-SCAN-1", "the walk is recursive and markdown-only", () => {
   assertDeepEqual(files.map((f) => f.filename).sort(), ["a.md", "sub/b.md", "sub/deep/c.md"]);
 });
 
-test("REQ-SCAN-2", "description falls back to the first meaningful body line", () => {
+test("description falls back to the first meaningful body line", () => {
   assertEqual(deriveDescription("\n\n## A heading\nbody\n"), "A heading");
   assertEqual(deriveDescription("plain first line\nsecond"), "plain first line");
   assertEqual(deriveDescription("\n   \n"), null);
   assertEqual(deriveDescription(`# ${"x".repeat(300)}`)?.length, 120, "capped at nny=120");
 });
 
-test("REQ-SCAN-2", "frontmatter description wins over the body fallback", () => {
+test("frontmatter description wins over the body fallback", () => {
   const root = makeTempDir();
   writeMemory(root, "with.md", { description: "from frontmatter", body: "# from body" });
   writeMemory(root, "without.md", { name: "n", body: "# from body" });
@@ -42,7 +42,7 @@ test("REQ-SCAN-2", "frontmatter description wins over the body fallback", () => 
   assertEqual(byName.get("without.md")?.description, "from body");
 });
 
-test("REQ-SCAN-3", "only the four known types survive", () => {
+test("only the four known types survive", () => {
   assertEqual(normalizeType("user"), "user");
   assertEqual(normalizeType("reference"), "reference");
   assertEqual(normalizeType("banana"), undefined);
@@ -50,7 +50,7 @@ test("REQ-SCAN-3", "only the four known types survive", () => {
   assertEqual(normalizeType(undefined), undefined);
 });
 
-test("REQ-SCAN-4", "MEMORY.md is excluded at every depth and every scope", () => {
+test("MEMORY.md is excluded at every depth and every scope", () => {
   const priv = makeTempDir();
   const proj = makeTempDir();
   writeFile(join(priv, "MEMORY.md"), "- [A](a.md) — hook");
@@ -73,7 +73,7 @@ test("REQ-SCAN-4", "MEMORY.md is excluded at every depth and every scope", () =>
   assertEqual(files.length, 2);
 });
 
-test("REQ-SCAN-5", "results are newest-first by mtime and capped at maxFiles", () => {
+test("results are newest-first by mtime and capped at maxFiles", () => {
   const root = makeTempDir();
   writeMemory(root, "old.md", { description: "old", ageDays: 30 });
   writeMemory(root, "mid.md", { description: "mid", ageDays: 10 });
@@ -87,7 +87,7 @@ test("REQ-SCAN-5", "results are newest-first by mtime and capped at maxFiles", (
   assertEqual(capped.dropped, 1);
 });
 
-test("REQ-SCAN-6", "the scan read budget bounds what frontmatter is seen", () => {
+test("the scan read budget bounds what frontmatter is seen", () => {
   const root = makeTempDir();
   // Frontmatter pushed past the 3-line scan budget must not be found.
   writeFile(
@@ -98,7 +98,7 @@ test("REQ-SCAN-6", "the scan read budget bounds what frontmatter is seen", () =>
   assertEqual(files[0].description, "padding", "only the first 3 lines were read");
 });
 
-test("REQ-SCAN-7", "pinnedState maps every input shape", () => {
+test("pinnedState maps every input shape", () => {
   assertEqual(pinnedStateOf(undefined), "absent");
   assertEqual(pinnedStateOf(null), "absent");
   assertEqual(pinnedStateOf(true), "true");
@@ -109,7 +109,7 @@ test("REQ-SCAN-7", "pinnedState maps every input shape", () => {
   assertEqual(pinnedStateOf(1), "malformed");
 });
 
-test(["REQ-SCAN-8", "REQ-FAIL-4"], "a malformed file is scanned, not skipped", () => {
+test("a malformed file is scanned, not skipped", () => {
   const root = makeTempDir();
   writeFile(join(root, "broken.md"), "---\nthis: [is: not: yaml\n---\nsome body\n");
   writeMemory(root, "fine.md", { description: "fine" });
@@ -121,7 +121,7 @@ test(["REQ-SCAN-8", "REQ-FAIL-4"], "a malformed file is scanned, not skipped", (
   assertEqual(broken.pinnedState, "absent");
 });
 
-test(["REQ-SCAN-9", "REQ-FAIL-3"], "a missing root contributes nothing and does not throw", () => {
+test("a missing root contributes nothing and does not throw", () => {
   const root = makeTempDir();
   writeMemory(root, "a.md", { description: "a" });
   const { files } = scanAll(
@@ -134,7 +134,7 @@ test(["REQ-SCAN-9", "REQ-FAIL-3"], "a missing root contributes nothing and does 
   assertEqual(files.length, 1);
 });
 
-test("REQ-SCAN-10", "project-scope files are namespaced under team/", () => {
+test("project-scope files are namespaced under team/", () => {
   const priv = makeTempDir();
   const proj = makeTempDir();
   writeMemory(priv, "p.md", { description: "private" });
@@ -151,7 +151,7 @@ test("REQ-SCAN-10", "project-scope files are namespaced under team/", () => {
   assertEqual(files.find((f) => f.filename.startsWith("team/"))?.scope, "project");
 });
 
-test("REQ-SCAN-11", "modifiedMs prefers metadata.modified when it parses", () => {
+test("modifiedMs prefers metadata.modified when it parses", () => {
   const root = makeTempDir();
   writeFile(
     join(root, "dated.md"),
@@ -168,7 +168,7 @@ test("REQ-SCAN-11", "modifiedMs prefers metadata.modified when it parses", () =>
   assertEqual(bad?.modifiedMs, bad?.mtimeMs, "an unparseable date falls back to mtime");
 });
 
-test("REQ-SCAN-12", "an unreadable file is skipped without breaking the scan", () => {
+test("an unreadable file is skipped without breaking the scan", () => {
   const root = makeTempDir();
   writeMemory(root, "ok.md", { description: "ok" });
   const denied = join(root, "denied.md");
@@ -184,7 +184,7 @@ test("REQ-SCAN-12", "an unreadable file is skipped without breaking the scan", (
   assert(files.some((f) => f.filename === "ok.md"), "the readable file is still scanned");
 });
 
-test(["REQ-INJECT-4", "REQ-LIMIT-5"], "pinned candidates are newest-first by modifiedMs and capped", () => {
+test("pinned candidates are newest-first by modifiedMs and capped", () => {
   const root = makeTempDir();
   for (let i = 0; i < 12; i++) {
     writeMemory(root, `p${i}.md`, { description: `p${i}`, pinned: true, ageDays: i });
@@ -203,7 +203,7 @@ test(["REQ-INJECT-4", "REQ-LIMIT-5"], "pinned candidates are newest-first by mod
   );
 });
 
-test("REQ-SCAN-1", "directory symlinks are not followed", () => {
+test("directory symlinks are not followed", () => {
   const root = makeTempDir();
   const outside = makeTempDir();
   writeMemory(outside, "escaped.md", { description: "should not appear" });

@@ -1,7 +1,7 @@
 /**
  * Whole-pipeline tests: temp memory dirs -> scan -> select (mocked provider)
  * -> injected system prompt. This is the closest headless equivalent of the
- * interactive `/system-prompt` check in SPEC.md §11.
+ * interactive `/system-prompt` check in pi.
  */
 
 import { join } from "node:path";
@@ -71,7 +71,7 @@ function provider(names: string[]): CompleteFn {
 
 // ---------------------------------------------------------------------------
 
-test(["REQ-INJECT-1", "REQ-INJECT-6"], "a turn injects policy, index and pinned block", async () => {
+test("a turn injects policy, index and pinned block", async () => {
   const f = fixture();
   writeFile(join(f.privateDir, "MEMORY.md"), "- [Testing](testing.md) — how to run tests\n");
   writeMemory(f.privateDir, "testing.md", {
@@ -101,13 +101,13 @@ test(["REQ-INJECT-1", "REQ-INJECT-6"], "a turn injects policy, index and pinned 
   assertNotIncludes(out, "Run `bun test`.");
 });
 
-test("REQ-CFG-7", "enabled: false yields no session at all", () => {
+test("enabled: false yields no session at all", () => {
   const configDir = makeTempDir();
   writeFileSync(join(configDir, "memory-config.json"), JSON.stringify({ enabled: false }), "utf8");
   assertEqual(initSession(process.cwd(), configDir), undefined);
 });
 
-test("REQ-CFG-6", "a project dir that does not exist is skipped", () => {
+test("a project dir that does not exist is skipped", () => {
   const f = fixture({}, { withProject: false });
   assertEqual(f.state.teamDir, undefined);
   const out = buildInjection(f.state, "BASE", NO_SELECTION).prompt;
@@ -115,7 +115,7 @@ test("REQ-CFG-6", "a project dir that does not exist is skipped", () => {
   assertIncludes(out, "You have a persistent, file-based memory system at ");
 });
 
-test("REQ-SCAN-10", "both scopes are scanned and the team scope is namespaced", () => {
+test("both scopes are scanned and the team scope is namespaced", () => {
   const f = fixture();
   writeMemory(f.privateDir, "p.md", { description: "private one" });
   writeMemory(f.projectDir, "t.md", { description: "team one" });
@@ -123,7 +123,7 @@ test("REQ-SCAN-10", "both scopes are scanned and the team scope is namespaced", 
   assertDeepEqual(f.state.files.map((x) => x.filename).sort(), ["p.md", "team/t.md"]);
 });
 
-test(["REQ-SELECT-1", "REQ-INJECT-8"], "a selected memory's body reaches the prompt", async () => {
+test("a selected memory's body reaches the prompt", async () => {
   const f = fixture();
   writeMemory(f.privateDir, "testing.md", {
     name: "testing",
@@ -149,7 +149,7 @@ test(["REQ-SELECT-1", "REQ-INJECT-8"], "a selected memory's body reaches the pro
   assertEqual(f.state.lastTurn?.selectorReason, "ok");
 });
 
-test("REQ-SELECT-9", "a memory surfaced on turn 1 is not re-injected on turn 2", async () => {
+test("a memory surfaced on turn 1 is not re-injected on turn 2", async () => {
   const f = fixture();
   writeMemory(f.privateDir, "testing.md", {
     name: "testing",
@@ -168,7 +168,7 @@ test("REQ-SELECT-9", "a memory surfaced on turn 1 is not re-injected on turn 2",
   assertDeepEqual(f.state.lastTurn?.selected, []);
 });
 
-test(["REQ-LIMIT-1", "REQ-INJECT-3"], "once the budget is spent recall stops but pinning continues", async () => {
+test("once the budget is spent recall stops but pinning continues", async () => {
   const f = fixture({ maxSessionBytes: 64 });
   writeMemory(f.privateDir, "big.md", {
     name: "big",
@@ -203,7 +203,7 @@ test(["REQ-LIMIT-1", "REQ-INJECT-3"], "once the budget is spent recall stops but
   assertIncludes(second ?? "", "# Pinned memories (apply to every conversation)");
 });
 
-test("REQ-CFG-8", "selector.enabled false keeps tiers 1 and 3 and never calls the provider", async () => {
+test("selector.enabled false keeps tiers 1 and 3 and never calls the provider", async () => {
   const f = fixture({ selector: { enabled: false } });
   let calls = 0;
   writeMemory(f.privateDir, "pin.md", { description: "pinned", pinned: true, body: "PINNED BODY" });
@@ -221,7 +221,7 @@ test("REQ-CFG-8", "selector.enabled false keeps tiers 1 and 3 and never calls th
   assertEqual(f.state.lastTurn?.selectorReason, "disabled");
 });
 
-test(["REQ-FAIL-1", "REQ-FAIL-5"], "a failing selector still yields a complete, valid prompt", async () => {
+test("a failing selector still yields a complete, valid prompt", async () => {
   const f = fixture();
   writeMemory(f.privateDir, "pin.md", { description: "pinned", pinned: true, body: "PINNED BODY" });
   rescan(f.state);
@@ -236,7 +236,7 @@ test(["REQ-FAIL-1", "REQ-FAIL-5"], "a failing selector still yields a complete, 
   assertEqual(f.state.lastTurn?.selectorReason, "error");
 });
 
-test("REQ-FAIL-2", "a disabled selector model latches off for the session", async () => {
+test("a disabled selector model latches off for the session", async () => {
   const f = fixture();
   writeMemory(f.privateDir, "a.md", { description: "a memory", body: "A BODY" });
   rescan(f.state);
@@ -251,7 +251,7 @@ test("REQ-FAIL-2", "a disabled selector model latches off for the session", asyn
   assertIncludes(renderBudget(f.state).join("\n"), "Selector disabled: selector model");
 });
 
-test(["REQ-SCAN-8", "REQ-FAIL-4"], "a malformed memory file does not break a turn", async () => {
+test("a malformed memory file does not break a turn", async () => {
   const f = fixture();
   writeFile(join(f.privateDir, "broken.md"), "---\n:: not : yaml [\n---\nBROKEN BODY\n");
   writeMemory(f.privateDir, "fine.md", { description: "fine", pinned: true, body: "FINE BODY" });
@@ -263,7 +263,7 @@ test(["REQ-SCAN-8", "REQ-FAIL-4"], "a malformed memory file does not break a tur
   assertEqual(f.state.files.length, 2);
 });
 
-test(["REQ-FAIL-6", "REQ-LIMIT-3"], "an oversized index truncates inside a real turn", async () => {
+test("an oversized index truncates inside a real turn", async () => {
   const f = fixture({ indexMaxLines: 5 });
   writeFile(
     join(f.privateDir, "MEMORY.md"),
@@ -278,7 +278,7 @@ test(["REQ-FAIL-6", "REQ-LIMIT-3"], "an oversized index truncates inside a real 
 
 // --- commands ---------------------------------------------------------------
 
-test("REQ-CMD-1", "/memory list reports scope, type, pinned state and description", () => {
+test("/memory list reports scope, type, pinned state and description", () => {
   const f = fixture();
   writeMemory(f.privateDir, "a.md", { description: "alpha memory", type: "user", pinned: true });
   writeMemory(f.projectDir, "b.md", { description: "beta memory", type: "project" });
@@ -293,7 +293,7 @@ test("REQ-CMD-1", "/memory list reports scope, type, pinned state and descriptio
   assertIncludes(text, "total ");
 });
 
-test("REQ-CMD-1", "/memory why reports the last turn", async () => {
+test("/memory why reports the last turn", async () => {
   const f = fixture();
   assertIncludes(renderWhy(f.state).join("\n"), "No turn has been injected yet");
   writeMemory(f.privateDir, "pin.md", { description: "pinned", pinned: true, body: "P" });
@@ -305,7 +305,7 @@ test("REQ-CMD-1", "/memory why reports the last turn", async () => {
   assertIncludes(text, "selector: ok");
 });
 
-test("REQ-CMD-1", "/memory budget reports the budget and selector counters", async () => {
+test("/memory budget reports the budget and selector counters", async () => {
   const f = fixture({ maxSessionBytes: 1000 });
   writeMemory(f.privateDir, "a.md", { description: "alpha", body: "A BODY" });
   rescan(f.state);
@@ -318,7 +318,7 @@ test("REQ-CMD-1", "/memory budget reports the budget and selector counters", asy
   assertIncludes(text, "Selector calls: 1, failures 0, timeouts 0");
 });
 
-test("REQ-CMD-1", "/memory dry-run selects the right file and rejects an unrelated one", async () => {
+test("/memory dry-run selects the right file and rejects an unrelated one", async () => {
   const f = fixture();
   writeMemory(f.privateDir, "testing.md", {
     description: "how to run this project's tests",
@@ -342,12 +342,12 @@ test("REQ-CMD-1", "/memory dry-run selects the right file and rejects an unrelat
   assertIncludes(text, "- [project] testing.md");
 });
 
-test("REQ-CMD-2", "/memory dry-run without a query prints usage", async () => {
+test("/memory dry-run without a query prints usage", async () => {
   const f = fixture();
   assertIncludes((await renderDryRun(f.state, "  ")).join("\n"), "usage: /memory dry-run <query>");
 });
 
-test("REQ-CMD-1", "/memory dry-run does not spend the session budget", async () => {
+test("/memory dry-run does not spend the session budget", async () => {
   const f = fixture();
   writeMemory(f.privateDir, "a.md", { description: "alpha", body: "A BODY" });
   rescan(f.state);
@@ -356,9 +356,9 @@ test("REQ-CMD-1", "/memory dry-run does not spend the session budget", async () 
   assertEqual(f.state.budget.bytes, 0, "dry-run never surfaces, so it never charges the budget");
 });
 
-// --- pinned / index double injection (SPEC.md §7.1) --------------------------
+// --- pinned / index double injection ------------------------------------------
 
-test(["REQ-WRITE-19", "REQ-INJECT-1"], "a pinned memory kept out of the index appears exactly once", async () => {
+test("a pinned memory kept out of the index appears exactly once", async () => {
   const f = fixture();
   writeMemory(f.privateDir, "always.md", {
     name: "always",
@@ -373,7 +373,7 @@ test(["REQ-WRITE-19", "REQ-INJECT-1"], "a pinned memory kept out of the index ap
     type: "project",
     body: "Run `bun test`.",
   });
-  // Correct index per REQ-WRITE-19: the pinned memory is absent.
+  // Correct index per : the pinned memory is absent.
   writeFile(join(f.privateDir, "MEMORY.md"), "- [Testing](testing.md) — bun test\n");
 
   const out = (await runTurn(f.state, "BASE", "how do I run the tests")) ?? "";
@@ -386,7 +386,7 @@ test(["REQ-WRITE-19", "REQ-INJECT-1"], "a pinned memory kept out of the index ap
   assertIncludes(out, "- [Testing](testing.md) — bun test");
 });
 
-test("REQ-WRITE-19", "the redundancy this rule removes is real when the rule is broken", async () => {
+test("the redundancy this rule removes is real when the rule is broken", async () => {
   const f = fixture();
   writeMemory(f.privateDir, "always.md", {
     name: "always",
@@ -395,7 +395,7 @@ test("REQ-WRITE-19", "the redundancy this rule removes is real when the rule is 
     pinned: true,
     body: "Never force-push to main.",
   });
-  // The state REQ-WRITE-19 forbids: pinned AND indexed.
+  // The state  forbids: pinned AND indexed.
   writeFile(join(f.privateDir, "MEMORY.md"), "- [Always](always.md) — never force-push\n");
 
   const out = (await runTurn(f.state, "BASE", "a query with several words")) ?? "";

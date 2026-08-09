@@ -1,5 +1,5 @@
 /**
- * SELECT — the persistent selector conversation. See SPEC.md §5.
+ * SELECT — the persistent selector conversation.
  *
  * This module is pure: it takes a `CompleteFn` and never imports pi or pi-ai
  * at runtime, so the whole of SELECT is testable with a mocked provider.
@@ -17,7 +17,6 @@ export const SELECTOR_TOOL_NAME = "select_memories";
 
 /**
  * The selector's output contract, carried as the tool's parameter schema.
- * See SPEC.md §5.1 for why a forced tool call is the chosen path.
  */
 export const SELECTOR_SCHEMA = {
   type: "object",
@@ -27,7 +26,8 @@ export const SELECTOR_SCHEMA = {
 } as const;
 
 /**
- * `strict: "prefer"`, deliberately, not `"require"` — see SPEC.md §5.1.
+ * `strict: "prefer"` is used instead of `"require"` so providers without
+ * strict-tool support can fall back to text parsing.
  *
  * pi-ai's `resolveJsonSchemaStrictSampling` *throws* when a tool asks for
  * `"require"` and the model reports no strict-tool support. Anthropic's adapter
@@ -44,7 +44,7 @@ export const SELECTOR_TOOL = {
   constrainedSampling: { type: "json_schema", strict: "prefer" },
 } as const;
 
-/** A model that echoes the listing's `[type] ` prefix still matches (REQ-SELECT-8). */
+/** A model that echoes the listing's `[type] ` prefix still matches. */
 export const TYPE_PREFIX = new RegExp(`^\\[(?:${MEMORY_TYPES.join("|")})\\]\\s+`);
 
 // ---------------------------------------------------------------------------
@@ -103,7 +103,7 @@ export interface ListingEntry {
 /**
  * `- [{type}] {filename} ({ISO mtime}): {description}`, with
  * the type prefix omitted when unknown and the `: description` tail omitted
- * when null (REQ-SELECT-3).
+ * when null.
  */
 export function formatListing(entries: ListingEntry[]): string {
   return entries
@@ -133,7 +133,7 @@ export function toListingEntry(f: MemoryFile): ListingEntry {
 /** CJK ranges: these count as "wordy" even with no whitespace in the query. */
 const CJK = /[\u3040-\u30FF\u3400-\u4DBF\u4E00-\u9FFF\uAC00-\uD7AF\uF900-\uFAFF]/;
 
-/** REQ-SELECT-14 — a single whitespace-free token is not worth a selector call. */
+/** A single whitespace-free token is not worth a selector call. */
 export function queryIsSelectable(query: string): boolean {
   const trimmed = query.trim();
   if (trimmed === "") return false;
@@ -179,14 +179,14 @@ export function validateSelection(value: unknown): string[] | null {
 }
 
 /**
- * REQ-SELECT-11/12 — pull `selected_memories` out of a response.
+ * Pull `selected_memories` out of a response.
  *
  * Primary path: the forced `select_memories` tool call. Fallback: the first
  * balanced JSON object in any text block. Returns null when neither yields a
  * schema-valid object, which the caller turns into an empty selection.
  */
 export function extractSelection(response: SelectorResponse): { raw: string[]; answerText: string } | null {
-  if (response.stopReason === "length") return null; // REQ-SELECT-11
+  if (response.stopReason === "length") return null;
 
   for (const block of response.content ?? []) {
     if (block.type !== "toolCall") continue;
@@ -209,11 +209,11 @@ export function extractSelection(response: SelectorResponse): { raw: string[]; a
     }
   }
 
-  return null; // REQ-SELECT-12
+  return null;
 }
 
 /**
- * REQ-SELECT-8 — resolve returned strings against the listing. A string that
+ * Resolve returned strings against the listing. A string that
  * does not match is retried once with a leading `[type] ` prefix stripped;
  * anything still unmatched is discarded silently.
  */
@@ -268,14 +268,14 @@ export interface SelectorRunResult {
 
 /**
  * One selector conversation. Instantiate per session; call `run` per user
- * message. History grows only on success (REQ-SELECT-16).
+ * message. History grows only on success.
  */
 export class SelectorConversation {
   private history: SelectorMessage[] = [];
   private listing = "";
   private known = new Map<string, ListingEntry>();
   private seeded = false;
-  /** Absolute paths already surfaced this session (REQ-SELECT-9). */
+  /** Absolute paths already surfaced in this session. */
   readonly surfaced = new Set<string>();
   readonly stats: SelectorStats = {
     calls: 0,
@@ -316,7 +316,7 @@ export class SelectorConversation {
     return (this.history.length - 1) / 2;
   }
 
-  /** Mark a path as surfaced so it is never selected again (REQ-SELECT-9). */
+  /** Mark a path as surfaced so it is never selected again. */
   markSurfaced(paths: Iterable<string>): void {
     for (const p of paths) this.surfaced.add(p);
   }
@@ -344,14 +344,14 @@ export class SelectorConversation {
 
   /**
    * Run one selection. Never throws; every failure path returns an empty
-   * selection (REQ-FAIL-1).
+   * selection.
    */
   async run(query: string, externalSignal?: AbortSignal): Promise<SelectorRunResult> {
     if (!this.seeded || this.known.size === 0) return this.empty("no-candidates");
     if (!queryIsSelectable(query)) return this.empty("query-not-selectable");
 
     const available = [...this.known.values()].filter((e) => !this.surfaced.has(e.filePath));
-    if (available.length === 0) return this.empty("all-surfaced"); // REQ-SELECT-15
+    if (available.length === 0) return this.empty("all-surfaced");
 
     const userMessage: SelectorMessage = {
       role: "user",
@@ -390,24 +390,24 @@ export class SelectorConversation {
 
     if (response.stopReason === "length") {
       this.stats.truncated++;
-      return this.empty("truncated", latencyMs); // REQ-SELECT-11
+      return this.empty("truncated", latencyMs);
     }
 
     const extracted = extractSelection(response);
     if (!extracted) {
       this.stats.failures++;
-      return this.empty("no-structured-output", latencyMs); // REQ-SELECT-12
+      return this.empty("no-structured-output", latencyMs);
     }
 
-    // History grows only on a successful call (REQ-SELECT-6/16).
+    // History grows only on a successful call.
     this.history.push(userMessage, {
       role: "assistant",
       content: [{ type: "text", text: extracted.answerText }],
     });
 
     const selected = resolveFilenames(extracted.raw, this.known)
-      .filter((e) => !this.surfaced.has(e.filePath)) // REQ-SELECT-9
-      .slice(0, this.opts.maxSelected); // REQ-SELECT-7
+      .filter((e) => !this.surfaced.has(e.filePath))
+      .slice(0, this.opts.maxSelected);
 
     if (selected.length === 0) this.stats.emptyResults++;
 
@@ -430,8 +430,7 @@ function elapsed(startedAt: number, now?: () => number): number {
 // ---------------------------------------------------------------------------
 
 /**
- * REQ-LIMIT-1 — cumulative surfaced bytes gate the selector, not the pinned
- * block.
+ * Cumulative surfaced bytes gate the selector, not the pinned block.
  */
 export class SessionBudget {
   private consumed = 0;

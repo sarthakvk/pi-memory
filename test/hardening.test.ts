@@ -50,7 +50,7 @@ function provider(names: string[]): CompleteFn {
 
 // --- limits -----------------------------------------------------------------
 
-test("REQ-LIMIT-2", "the scan cap holds and keeps the newest files", () => {
+test("the scan cap holds and keeps the newest files", () => {
   const root = makeTempDir();
   for (let i = 0; i < 40; i++) {
     writeMemory(root, `m${String(i).padStart(2, "0")}.md`, { description: `m${i}`, ageDays: i });
@@ -62,7 +62,7 @@ test("REQ-LIMIT-2", "the scan cap holds and keeps the newest files", () => {
   assertEqual(files[9].filename, "m09.md");
 });
 
-test("REQ-LIMIT-2", "the cap is enforced across both scopes together", () => {
+test("the cap is enforced across both scopes together", () => {
   const priv = makeTempDir();
   const proj = makeTempDir();
   for (let i = 0; i < 6; i++) writeMemory(priv, `p${i}.md`, { description: `p${i}`, ageDays: i * 2 });
@@ -79,7 +79,7 @@ test("REQ-LIMIT-2", "the cap is enforced across both scopes together", () => {
   assertDeepEqual(files.map((f) => f.filename), ["p0.md", "team/t0.md", "p1.md", "team/t1.md"]);
 });
 
-test("REQ-LIMIT-2", "a maxFiles of zero surfaces nothing but does not throw", () => {
+test("a maxFiles of zero surfaces nothing but does not throw", () => {
   const root = makeTempDir();
   writeMemory(root, "a.md", { description: "a" });
   const { files, dropped } = scanAll([{ root, scope: "private" }], { ...DEFAULTS, maxFiles: 0 });
@@ -89,7 +89,7 @@ test("REQ-LIMIT-2", "a maxFiles of zero surfaces nothing but does not throw", ()
 
 // --- no scope root ----------------------------------------------------------
 
-test("REQ-INJECT-10", "with no scope root on disk nothing at all is injected", () => {
+test("with no scope root on disk nothing at all is injected", () => {
   const base = makeTempDir();
   const s = session({ dir: join(base, "created"), projectDir: "" }, makeTempDir());
   // initSession creates the configured dir, so point at one that was never made.
@@ -102,7 +102,7 @@ test("REQ-INJECT-10", "with no scope root on disk nothing at all is injected", (
   assertEqual(s2.counters.turnsWithNoScope, 1);
 });
 
-test("REQ-INJECT-10", "a turn with no scope root leaves the prompt byte-identical", async () => {
+test("a turn with no scope root leaves the prompt byte-identical", async () => {
   const missing = join(makeTempDir(), "gone");
   const s = session({ dir: missing, projectDir: "" }, makeTempDir());
   s.dirs = { ...s.dirs, privateDir: join(missing, "deeper", "still-gone") };
@@ -111,7 +111,7 @@ test("REQ-INJECT-10", "a turn with no scope root leaves the prompt byte-identica
   assertEqual(out, "SYSTEM");
 });
 
-test("REQ-INJECT-11", "the private memory dir is created, the project dir never is", () => {
+test("the private memory dir is created, the project dir never is", () => {
   const home = makeTempDir();
   const privateDir = join(home, "agent", "memory");
   const cwd = makeTempDir();
@@ -125,7 +125,7 @@ test("REQ-INJECT-11", "the private memory dir is created, the project dir never 
 
 // --- degenerate inputs ------------------------------------------------------
 
-test("REQ-SCAN-8", "an empty file, a frontmatter-only file and a bare delimiter all scan", () => {
+test("an empty file, a frontmatter-only file and a bare delimiter all scan", () => {
   const root = makeTempDir();
   writeFile(join(root, "empty.md"), "");
   writeFile(join(root, "fmonly.md"), "---\nname: fmonly\ndescription: only frontmatter\n---\n");
@@ -138,7 +138,7 @@ test("REQ-SCAN-8", "an empty file, a frontmatter-only file and a bare delimiter 
   assertEqual(byName.get("dashes.md")?.description, "---", "an unterminated block is just body text");
 });
 
-test("REQ-SCAN-8", "CRLF line endings parse", () => {
+test("CRLF line endings parse", () => {
   const root = makeTempDir();
   writeFile(
     join(root, "crlf.md"),
@@ -151,7 +151,7 @@ test("REQ-SCAN-8", "CRLF line endings parse", () => {
   assertEqual(f.pinnedState, "true");
 });
 
-test("REQ-SCAN-1", "a deeply nested memory is still found", () => {
+test("a deeply nested memory is still found", () => {
   const root = makeTempDir();
   writeMemory(root, join("a", "b", "c", "d", "e", "deep.md"), { description: "deep one" });
   const files = scanDir(root, "private", DEFAULTS);
@@ -159,7 +159,7 @@ test("REQ-SCAN-1", "a deeply nested memory is still found", () => {
   assertEqual(files[0].filename, "a/b/c/d/e/deep.md");
 });
 
-test("REQ-FAIL-3", "a scope root that is a file, not a directory, is tolerated", () => {
+test("a scope root that is a file, not a directory, is tolerated", () => {
   const parent = makeTempDir();
   const notADir = join(parent, "memory");
   writeFileSync(notADir, "I am a file", "utf8");
@@ -167,21 +167,21 @@ test("REQ-FAIL-3", "a scope root that is a file, not a directory, is tolerated",
   assertDeepEqual(files, []);
 });
 
-test("REQ-INJECT-7", "an index of exactly the limit is not truncated", () => {
+test("an index of exactly the limit is not truncated", () => {
   const text = Array.from({ length: 200 }, (_, i) => `- [E${i}](e${i}.md)`).join("\n");
   const r = truncateWithWarning(text, "index", 200, 25000);
   assertEqual(r.wasLineTruncated, false);
   assertNotIncludes(r.content, "> WARNING:");
 });
 
-test("REQ-INJECT-7", "an index one line over the limit truncates", () => {
+test("an index one line over the limit truncates", () => {
   const text = Array.from({ length: 201 }, (_, i) => `- [E${i}](e${i}.md)`).join("\n");
   const r = truncateWithWarning(text, "index", 200, 25000);
   assertEqual(r.wasLineTruncated, true);
   assertIncludes(r.content, "201 lines (limit: 200)");
 });
 
-test("REQ-LIMIT-6", "multi-byte content is truncated on a code-point boundary", () => {
+test("multi-byte content is truncated on a code-point boundary", () => {
   const r = truncateWithWarning("héllo wörld ".repeat(50), "file", 1000, 20);
   assertEqual(r.wasByteTruncated, true);
   // Round-tripping proves no lone surrogate or split sequence survived.
@@ -191,7 +191,7 @@ test("REQ-LIMIT-6", "multi-byte content is truncated on a code-point boundary", 
 
 // --- telemetry --------------------------------------------------------------
 
-test("REQ-CMD-4", "counters accumulate across turns and appear in /memory budget", async () => {
+test("counters accumulate across turns and appear in /memory budget", async () => {
   const privateDir = join(makeTempDir(), "memory");
   const s = session({ dir: privateDir, projectDir: "", maxSessionBytes: 100000 }, makeTempDir());
   writeMemory(privateDir, "pin.md", { name: "pin", description: "pinned", pinned: true, body: "P BODY" });
@@ -216,7 +216,7 @@ test("REQ-CMD-4", "counters accumulate across turns and appear in /memory budget
   assertIncludes(text, "Selector calls: 2");
 });
 
-test("REQ-CMD-4", "counters report files dropped by the cap", () => {
+test("counters report files dropped by the cap", () => {
   const privateDir = join(makeTempDir(), "memory");
   const s = session({ dir: privateDir, projectDir: "", maxFiles: 2 }, makeTempDir());
   for (let i = 0; i < 5; i++) writeMemory(privateDir, `m${i}.md`, { description: `m${i}`, ageDays: i });
@@ -226,7 +226,7 @@ test("REQ-CMD-4", "counters report files dropped by the cap", () => {
   assertIncludes(renderBudget(s).join("\n"), "files 2 (+3 dropped)");
 });
 
-test("REQ-CMD-4", "a turn with no scope root is counted", async () => {
+test("a turn with no scope root is counted", async () => {
   const s = session({ dir: join(makeTempDir(), "x"), projectDir: "" }, makeTempDir());
   s.dirs = { ...s.dirs, privateDir: join(makeTempDir(), "definitely-not-here") };
   s.teamDir = undefined;
@@ -237,7 +237,7 @@ test("REQ-CMD-4", "a turn with no scope root is counted", async () => {
 
 // --- ordering stability -----------------------------------------------------
 
-test("REQ-INJECT-1", "section order is policy, index, pinned, surfaced", async () => {
+test("section order is policy, index, pinned, surfaced", async () => {
   const privateDir = join(makeTempDir(), "memory");
   const s = session({ dir: privateDir, projectDir: "" }, makeTempDir());
   mkdirSync(privateDir, { recursive: true });

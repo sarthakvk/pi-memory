@@ -5,13 +5,13 @@
  * that memory files actually use:
  * scalars, one level of nested mapping, quoted and bare strings, booleans,
  * numbers, null. Anything it cannot parse degrades to "no frontmatter" rather
- * than throwing (REQ-SCAN-8).
+ * than throwing.
  */
 
 /** The leading `---` … `---` block that opens a memory file. */
 const DELIMITER = /^---[ \t]*\r?\n([\s\S]*?)\r?\n?---[ \t]*(?:\r?\n|$)/;
 
-/** `name:` must be a kebab/snake-case slug (REQ-WRITE-15). */
+/** `name:` must be a kebab/snake-case slug. */
 export const NAME_PATTERN = /^[a-z0-9_-]+$/;
 
 export type YamlValue = string | number | boolean | null | YamlValue[] | { [k: string]: YamlValue };
@@ -170,7 +170,7 @@ export function parseYamlSubset(src: string): Record<string, YamlValue> {
  * Split a memory file into frontmatter and body.
  *
  * A file with no leading `---` block, or with a block that fails to parse,
- * yields empty frontmatter and the whole file as body (REQ-SCAN-8).
+ * yields empty frontmatter and the whole file as body.
  */
 export function parseMemoryFile(content: string): ParsedFile {
   const match = DELIMITER.exec(content);

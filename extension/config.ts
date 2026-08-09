@@ -1,9 +1,9 @@
 /**
- * CFG — configuration loading. See SPEC.md §3.
+ * CFG — configuration loading.
  *
  * Every key is optional. A missing, unreadable, or invalid config file yields
- * the full default config (REQ-CFG-2). A key of the wrong type is ignored in
- * favour of its default (REQ-CFG-3). Unknown keys are ignored (REQ-CFG-4).
+ * the full default config. A key of the wrong type is ignored in favour of
+ * its default. Unknown keys are ignored.
  */
 
 import { homedir } from "node:os";
@@ -35,8 +35,8 @@ export interface MemoryConfig {
 }
 
 /**
- * Every limit the extension enforces, in one place. Values are documented in
- * SPEC.md §3; overriding one is a deliberate act, not a tuning accident.
+ * Every limit the extension enforces, in one place. Overriding one is a
+ * deliberate act, not a tuning accident.
  */
 export const DEFAULTS: MemoryConfig = {
   enabled: true,
@@ -58,8 +58,8 @@ export const DEFAULTS: MemoryConfig = {
   indexMaxBytes: 25000,
   maxPinned: 8,
   // Citation tags are an internal channel: they only work if something strips
-  // them before the user sees the reply. Pi has no render hook that can — see
-  // SPEC §7.2 — so leaving this on would surface raw XML in replies. Default off.
+  // them before the user sees the reply. Pi has no render hook that can, so
+  // leaving this on would surface raw XML in replies. Default off.
   citeMemories: false,
 };
 
@@ -79,7 +79,7 @@ function pickPositiveInt(v: unknown, fallback: number): number {
   return typeof v === "number" && Number.isFinite(v) && v >= 0 ? Math.floor(v) : fallback;
 }
 
-/** Expand a leading `~` to the user's home directory (REQ-CFG-5). */
+/** Expand a leading `~` to the user's home directory. */
 export function expandHome(p: string, home = homedir()): string {
   if (p === "~") return home;
   if (p.startsWith("~/") || p.startsWith("~\\")) return join(home, p.slice(2));
@@ -134,8 +134,8 @@ export function loadConfig(agentDir: string): MemoryConfig {
 }
 
 /**
- * REQ-CFG-7 — `PI_MEMORY_DISABLED` set to anything other than empty or "0"
- * disables the extension entirely.
+ * `PI_MEMORY_DISABLED` set to anything other than empty or "0" disables the
+ * extension entirely.
  */
 export function disabledByEnv(env: NodeJS.ProcessEnv = process.env): boolean {
   const v = env.PI_MEMORY_DISABLED;
@@ -152,8 +152,8 @@ export interface ResolvedDirs {
 }
 
 /**
- * Resolve scope roots. `projectDir` is relative to cwd unless absolute
- * (REQ-CFG-6); the caller decides whether it exists.
+ * Resolve scope roots. `projectDir` is relative to cwd unless absolute; the
+ * caller decides whether it exists.
  */
 export function resolveDirs(config: MemoryConfig, cwd: string, home = homedir()): ResolvedDirs {
   const privateDir = resolve(expandHome(config.dir, home));

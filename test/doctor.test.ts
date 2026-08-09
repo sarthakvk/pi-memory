@@ -35,7 +35,7 @@ function kinds(findings: Finding[], subject: string): string[] {
   return findings.filter((x) => x.subject === subject).map((x) => x.kind).sort();
 }
 
-test("REQ-WRITE-14", "index pointers come from markdown links and bare .md tokens", () => {
+test("index pointers come from markdown links and bare .md tokens", () => {
   const pointers = extractIndexPointers(
     [
       "- [Testing](testing.md) — how to run tests",
@@ -50,7 +50,7 @@ test("REQ-WRITE-14", "index pointers come from markdown links and bare .md token
   assert(pointers.has("anchored.md"), "leading ./ and #anchor are stripped");
 });
 
-test("REQ-WRITE-17", "descriptionKey collapses phrasing differences", () => {
+test("descriptionKey collapses phrasing differences", () => {
   assertEqual(
     descriptionKey("How to run THIS project's tests!"),
     descriptionKey("this project tests: how to run"),
@@ -61,7 +61,7 @@ test("REQ-WRITE-17", "descriptionKey collapses phrasing differences", () => {
   );
 });
 
-test("REQ-WRITE-18", "a clean memory directory produces no findings", () => {
+test("a clean memory directory produces no findings", () => {
   const f = fix();
   writeMemory(f.privateDir, "user-role.md", {
     name: "user-role",
@@ -81,7 +81,7 @@ test("REQ-WRITE-18", "a clean memory directory produces no findings", () => {
   assertEqual(renderFindings([])[0], "memory doctor: no findings.");
 });
 
-test("REQ-WRITE-13", "a user memory in the team scope is a scope violation", () => {
+test("a user memory in the team scope is a scope violation", () => {
   const f = fix();
   writeMemory(f.projectDir, "who.md", {
     name: "who",
@@ -94,7 +94,7 @@ test("REQ-WRITE-13", "a user memory in the team scope is a scope violation", () 
   assertIncludes(findings[0].message, "`user` memories are always private");
 });
 
-test("REQ-WRITE-13", "the same user memory in the private scope is fine", () => {
+test("the same user memory in the private scope is fine", () => {
   const f = fix();
   writeMemory(f.privateDir, "who.md", {
     name: "who",
@@ -105,7 +105,7 @@ test("REQ-WRITE-13", "the same user memory in the private scope is fine", () => 
   assertDeepEqual(run(f), []);
 });
 
-test("REQ-WRITE-14", "a memory with no index pointer is reported", () => {
+test("a memory with no index pointer is reported", () => {
   const f = fix();
   writeMemory(f.privateDir, "orphan.md", {
     name: "orphan",
@@ -121,7 +121,7 @@ test("REQ-WRITE-14", "a memory with no index pointer is reported", () => {
   );
 });
 
-test("REQ-WRITE-14", "an index pointer with no file behind it is reported", () => {
+test("an index pointer with no file behind it is reported", () => {
   const f = fix();
   writeMemory(f.privateDir, "real.md", { name: "real", description: "a real memory", type: "project" });
   writeFile(f.indexPath, ["- [Real](real.md) — hook", "- [Ghost](ghost.md) — hook"].join("\n"));
@@ -129,14 +129,14 @@ test("REQ-WRITE-14", "an index pointer with no file behind it is reported", () =
   assertDeepEqual(kinds(findings, "ghost.md"), ["dangling-pointer"]);
 });
 
-test("REQ-WRITE-14", "MEMORY.md referring to itself is not a dangling pointer", () => {
+test("MEMORY.md referring to itself is not a dangling pointer", () => {
   const f = fix();
   writeMemory(f.privateDir, "a.md", { name: "a", description: "alpha memory", type: "project" });
   writeFile(f.indexPath, ["- [A](a.md) — hook", "keep MEMORY.md concise"].join("\n"));
   assertDeepEqual(run(f), []);
 });
 
-test("REQ-WRITE-15", "a missing or non-conforming name is reported", () => {
+test("a missing or non-conforming name is reported", () => {
   const f = fix();
   writeMemory(f.privateDir, "noname.md", { description: "has no name field", type: "project" });
   writeMemory(f.privateDir, "badname.md", {
@@ -155,7 +155,7 @@ test("REQ-WRITE-15", "a missing or non-conforming name is reported", () => {
   );
 });
 
-test("REQ-WRITE-16", "a memory with no retrievable description is reported", () => {
+test("a memory with no retrievable description is reported", () => {
   const f = fix();
   // No description and an empty body, so the body-derived fallback yields null.
   writeFile(join(f.privateDir, "blank.md"), "---\nname: blank\nmetadata:\n  type: project\n---\n\n\n");
@@ -165,7 +165,7 @@ test("REQ-WRITE-16", "a memory with no retrievable description is reported", () 
   assertIncludes(findings[0].message, "can never be selected");
 });
 
-test("REQ-WRITE-17", "two memories restating the same fact are flagged as duplicates", () => {
+test("two memories restating the same fact are flagged as duplicates", () => {
   const f = fix();
   writeMemory(f.privateDir, "tests-a.md", {
     name: "tests-a",
@@ -187,7 +187,7 @@ test("REQ-WRITE-17", "two memories restating the same fact are flagged as duplic
   );
 });
 
-test("REQ-CMD-3", "findings render with kind, subject and explanation", () => {
+test("findings render with kind, subject and explanation", () => {
   const f = fix();
   writeMemory(f.projectDir, "who.md", { name: "who", description: "user facts", type: "user" });
   const text = renderFindings(run(f)).join("\n");
@@ -196,9 +196,9 @@ test("REQ-CMD-3", "findings render with kind, subject and explanation", () => {
   assertIncludes(text, "[unindexed] team/who.md");
 });
 
-// --- pinned / index interaction (SPEC.md §7.1, REQ-WRITE-19..21) -------------
+// --- pinned / index interaction -----------------------------------
 
-test("REQ-WRITE-19", "a pinned memory with no index pointer is clean", () => {
+test("a pinned memory with no index pointer is clean", () => {
   const f = fix();
   writeMemory(f.privateDir, "always.md", {
     name: "always",
@@ -215,7 +215,7 @@ test("REQ-WRITE-19", "a pinned memory with no index pointer is clean", () => {
   assertDeepEqual(run(f), [], "the pinned memory is correctly absent from the index");
 });
 
-test(["REQ-WRITE-21", "REQ-WRITE-19"], "a pinned memory that still has an index pointer is reported", () => {
+test("a pinned memory that still has an index pointer is reported", () => {
   const f = fix();
   writeMemory(f.privateDir, "always.md", {
     name: "always",
@@ -230,7 +230,7 @@ test(["REQ-WRITE-21", "REQ-WRITE-19"], "a pinned memory that still has an index 
   assertIncludes(findings[0].message, "truncation cut-off");
 });
 
-test("REQ-WRITE-14", "a pinned memory is exempt from the unindexed check", () => {
+test("a pinned memory is exempt from the unindexed check", () => {
   const f = fix();
   writeMemory(f.privateDir, "always.md", {
     name: "always",
@@ -243,7 +243,7 @@ test("REQ-WRITE-14", "a pinned memory is exempt from the unindexed check", () =>
   assertEqual(findings.length, 0, `expected no findings, got ${JSON.stringify(findings)}`);
 });
 
-test(["REQ-WRITE-20", "REQ-WRITE-14"], "the unpin transition without an index edit is caught", () => {
+test("the unpin transition without an index edit is caught", () => {
   const f = fix();
   // The state left behind by removing `pinned: true` and forgetting step 2.
   writeMemory(f.privateDir, "was-pinned.md", {
@@ -259,7 +259,7 @@ test(["REQ-WRITE-20", "REQ-WRITE-14"], "the unpin transition without an index ed
   assertIncludes(message, "If it was just unpinned, add its index pointer");
 });
 
-test("REQ-WRITE-20", "both directions of the transition are caught in one run", () => {
+test("both directions of the transition are caught in one run", () => {
   const f = fix();
   writeMemory(f.privateDir, "newly-pinned.md", {
     name: "newly-pinned",
