@@ -117,8 +117,8 @@ export interface PolicyPromptOptions {
 }
 
 /**
- * Build the memory policy prompt: the index-based save flow, the type table,
- * and the two-scope directory sentences.
+ * Build the memory policy prompt: the index-based save flow and the
+ * two-scope directory sentences.
  *
  * Deterministic: same options in, byte-identical string out (REQ-WRITE-12).
  */
