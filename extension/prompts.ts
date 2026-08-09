@@ -61,75 +61,6 @@ const FRONTMATTER_TEMPLATE = [
   LINK_GUIDANCE,
 ];
 
-/** The `<types>` table: one entry per memory type, with scope and examples. */
-const TYPES_SECTION = [
-  "## Types of memory",
-  "",
-  "There are several discrete types of memory that you can store in your memory system. Each type below declares a <scope> of `private`, `team`, or guidance for choosing between the two.",
-  "",
-  "<types>",
-  "<type>",
-  "    <name>user</name>",
-  "    <scope>always private</scope>",
-  "    <description>Contain information about the user's role, goals, responsibilities, and knowledge. Great user memories help you tailor your future behavior to the user's preferences and perspective. Your goal in reading and writing these memories is to build up an understanding of who the user is and how you can be most helpful to them specifically. For example, you should collaborate with a senior software engineer differently than a student who is coding for the very first time. Keep in mind, that the aim here is to be helpful to the user. Avoid writing memories about the user that could be viewed as a negative judgement or that are not relevant to the work you're trying to accomplish together.</description>",
-  "    <when_to_save>When you learn any details about the user's role, preferences, responsibilities, or knowledge</when_to_save>",
-  "    <how_to_use>When your work should be informed by the user's profile or perspective. For example, if the user is asking you to explain a part of the code, you should answer that question in a way that is tailored to the specific details that they will find most valuable or that helps them build their mental model in relation to domain knowledge they already have.</how_to_use>",
-  "    <examples>",
-  "    user: I'm a data scientist investigating what logging we have in place",
-  "    assistant: [saves private user memory: user is a data scientist, currently focused on observability/logging]",
-  "",
-  "    user: I've been writing Go for ten years but this is my first time touching the React side of this repo",
-  "    assistant: [saves private user memory: deep Go expertise, new to React and this project's frontend — frame frontend explanations in terms of backend analogues]",
-  "    </examples>",
-  "</type>",
-  "<type>",
-  "    <name>feedback</name>",
-  "    <scope>default to private. Save as team only when the guidance is clearly a project-wide convention that every contributor should follow (e.g., a testing policy, a build invariant), not a personal style preference.</scope>",
-  "    <description>Guidance the user has given you about how to approach work — both what to avoid and what to keep doing. These are a very important type of memory to read and write as they allow you to remain coherent and responsive to the way you should approach work in the project. Record from failure AND success: if you only save corrections, you will avoid past mistakes but drift away from approaches the user has already validated, and may grow overly cautious. Before saving a private feedback memory, check that it doesn't contradict a team feedback memory — if it does, either don't save it or note the override explicitly.</description>",
-  '    <when_to_save>Any time the user corrects your approach ("no not that", "don\'t", "stop doing X") OR confirms a non-obvious approach worked ("yes exactly", "perfect, keep doing that", accepting an unusual choice without pushback). Corrections are easy to notice; confirmations are quieter — watch for them. In both cases, save what is applicable to future conversations, especially if surprising or not obvious from the code. Include *why* so you can judge edge cases later.</when_to_save>',
-  "    <how_to_use>Let these memories guide your behavior so that the user and other users in the project do not need to offer the same guidance twice.</how_to_use>",
-  "    <body_structure>Lead with the rule itself, then a **Why:** line (the reason the user gave — often a past incident or strong preference) and a **How to apply:** line (when/where this guidance kicks in). Knowing *why* lets you judge edge cases instead of blindly following the rule.</body_structure>",
-  "    <examples>",
-  "    user: don't mock the database in these tests — we got burned last quarter when mocked tests passed but the prod migration failed",
-  "    assistant: [saves team feedback memory: integration tests must hit a real database, not mocks. Reason: prior incident where mock/prod divergence masked a broken migration. Team scope: this is a project testing policy, not a personal preference]",
-  "",
-  "    user: stop summarizing what you just did at the end of every response, I can read the diff",
-  "    assistant: [saves private feedback memory: this user wants terse responses with no trailing summaries. Private because it's a communication preference, not a project convention]",
-  "",
-  "    user: yeah the single bundled PR was the right call here, splitting this one would've just been churn",
-  "    assistant: [saves private feedback memory: for refactors in this area, user prefers one bundled PR over many small ones. Confirmed after I chose this approach — a validated judgment call, not a correction]",
-  "    </examples>",
-  "</type>",
-  "<type>",
-  "    <name>project</name>",
-  "    <scope>private or team, but strongly bias toward team</scope>",
-  "    <description>Information that you learn about ongoing work, goals, initiatives, bugs, or incidents within the project that is not otherwise derivable from the code or git history. Project memories help you understand the broader context and motivation behind the work users are working on within this working directory.</description>",
-  '    <when_to_save>When you learn who is doing what, why, or by when. These states change relatively quickly so try to keep your understanding of this up to date. Always convert relative dates in user messages to absolute dates when saving (e.g., "Thursday" → "2026-03-05"), so the memory remains interpretable after time passes.</when_to_save>',
-  "    <how_to_use>Use these memories to more fully understand the details and nuance behind the user's request, anticipate coordination issues across users, make better informed suggestions.</how_to_use>",
-  "    <body_structure>Lead with the fact or decision, then a **Why:** line (the motivation — often a constraint, deadline, or stakeholder ask) and a **How to apply:** line (how this should shape your suggestions). Project memories decay fast, so the why helps future-you judge whether the memory is still load-bearing.</body_structure>",
-  "    <examples>",
-  "    user: we're freezing all non-critical merges after Thursday — mobile team is cutting a release branch",
-  "    assistant: [saves team project memory: merge freeze begins 2026-03-05 for mobile release cut. Flag any non-critical PR work scheduled after that date]",
-  "",
-  "    user: the reason we're ripping out the old auth middleware is that legal flagged it for storing session tokens in a way that doesn't meet the new compliance requirements",
-  "    assistant: [saves team project memory: auth middleware rewrite is driven by legal/compliance requirements around session token storage, not tech-debt cleanup — scope decisions should favor compliance over ergonomics]",
-  "    </examples>",
-  "</type>",
-  "<type>",
-  "    <name>reference</name>",
-  "    <scope>usually team</scope>",
-  "    <description>Stores pointers to where information can be found in external systems. These memories allow you to remember where to look to find up-to-date information outside of the project directory.</description>",
-  "    <when_to_save>When you learn about resources in external systems and their purpose. For example, that bugs are tracked in a specific project in Linear or that feedback can be found in a specific Slack channel.</when_to_save>",
-  "    <how_to_use>When the user references an external system or information that may be in an external system.</how_to_use>",
-  "    <examples>",
-  '    user: check the Linear project "INGEST" if you want context on these tickets, that\'s where we track all pipeline bugs',
-  '    assistant: [saves team reference memory: pipeline bugs are tracked in Linear project "INGEST"]',
-  "    </examples>",
-  "</type>",
-  "</types>",
-  "",
-];
-
 /**
  * The exclusion list (REQ-WRITE-6). The fourth bullet names AGENTS.md because
  * that is pi's context-file name.
@@ -143,8 +74,6 @@ const WHAT_NOT_TO_SAVE = [
   "- Anything already documented in AGENTS.md files.",
   "- Ephemeral task details: in-progress work, temporary state, current conversation context.",
   "",
-  "These exclusions apply even when the user explicitly asks you to save. If they ask you to save a PR list or activity summary, ask what was *surprising* or *non-obvious* about it — that is the part worth keeping.",
-  "",
 ];
 
 /** Staleness discipline — memories are point-in-time, verify before acting. */
@@ -155,44 +84,10 @@ const STALENESS_DISCIPLINE =
 const WHEN_TO_ACCESS = [
   "## When to access memories",
   "- When memories seem relevant, or the user references prior-conversation work.",
-  "- You MUST access memory when the user explicitly asks you to check, recall, or remember.",
-  "- If the user says to *ignore* or *not use* memory: Do not apply remembered facts, cite, compare against, or mention memory content.",
+  "- When the user explicitly asks you to check, recall, or remember.",
+  "",
+  ">If the user says to *ignore* or *not use* memory: Do not apply remembered facts, cite, compare against, or mention memory content.",
   STALENESS_DISCIPLINE,
-  "",
-];
-
-/** Citation format. Included only when `citeMemories` is on (REQ-WRITE-22). */
-const CITING = [
-  "## Citing memories",
-  "",
-  'Whenever you use or cite content from a memory in communication with the user, always wrap the entire sentence in <cc-memory filenames="{comma separated list of memory file names}">{sentence that references 1 or more memories}</cc-memory> tags. For example: <cc-memory filenames="testing-scripts.md">From a previously saved memory, I see that the command to run tests in this project is `bun test`</cc-memory>',
-  "",
-  "Only do this in your reply text to the user — never inside tool inputs such as plans, todo items, or question options.",
-  "",
-];
-
-/** Verification discipline before acting on a remembered claim (REQ-WRITE-9). */
-const BEFORE_RECOMMENDING = [
-  "## Before recommending from memory",
-  "",
-  "A memory that names a specific function, file, or flag is a claim that it existed *when the memory was written*. It may have been renamed, removed, or never merged. Before recommending it:",
-  "",
-  "- If the memory names a file path: check the file exists.",
-  "- If the memory names a function or flag: grep for it.",
-  "- If the user is about to act on your recommendation (not just asking about history), verify first.",
-  "",
-  '"The memory says X exists" is not the same as "X exists now."',
-  "",
-  "A memory that summarizes repo state (activity logs, architecture snapshots) is frozen in time. If the user asks about *recent* or *current* state, prefer `git log` or reading the code over recalling the snapshot.",
-  "",
-];
-
-/** Memory vs. plans and tasks: what belongs in each (REQ-WRITE-10). */
-const OTHER_PERSISTENCE = [
-  "## Memory and other forms of persistence",
-  "Memory is one of several persistence mechanisms available to you as you assist the user in a given conversation. The distinction is often that memory can be recalled in future conversations and should not be used for persisting information that is only useful within the scope of the current conversation.",
-  "- When to use or update a plan instead of memory: If you are about to start a non-trivial implementation task and would like to reach alignment with the user on your approach you should use a Plan rather than saving this information to memory. Similarly, if you already have a plan within the conversation and you have changed your approach persist that change by updating the plan rather than saving a memory.",
-  "- When to use or update tasks instead of memory: When you need to break your work in current conversation into discrete steps or keep track of your progress use tasks instead of saving to memory. Tasks are great for persisting information about the work that needs to be done in the current conversation, but memory should be reserved for information that will be useful in future conversations.",
   "",
 ];
 
@@ -217,18 +112,13 @@ export interface PolicyPromptOptions {
   indexMaxLines: number;
   /** Pinned cap, quoted into the pinning bullet. */
   maxPinned: number;
-  /**
-   * Include `## Citing memories`. Off by default because pi has no render hook
-   * to strip the tags before the user sees them (REQ-WRITE-22).
-   */
-  citeMemories?: boolean;
   /** Section title. Defaults to "Memory". */
   displayName?: string;
 }
 
 /**
- * Build the memory policy prompt: the index-based save flow, the type table,
- * and the two-scope directory sentences.
+ * Build the memory policy prompt: the index-based save flow and the
+ * two-scope directory sentences.
  *
  * Deterministic: same options in, byte-identical string out (REQ-WRITE-12).
  */
@@ -268,7 +158,9 @@ export function buildPolicyPrompt(opts: PolicyPromptOptions): string {
     "- Update or remove memories that turn out to be wrong or outdated",
     "- Do not write duplicate memories. First check if there is an existing memory you can update before writing a new one.",
     ...PINNING_BULLETS.map((b) =>
-      b.replace("{{maxPinned}}", String(maxPinned)).replaceAll("{{index}}", INDEX_FILENAME),
+      b
+        .replace("{{maxPinned}}", String(maxPinned))
+        .replaceAll("{{index}}", INDEX_FILENAME),
     ),
     "",
   );
@@ -293,13 +185,9 @@ export function buildPolicyPrompt(opts: PolicyPromptOptions): string {
     "",
     "If the user explicitly asks you to remember something, save it immediately as whichever type fits best. If they ask you to forget something, find and remove the relevant entry.",
     "",
-    ...TYPES_SECTION,
     ...scopeGuidance,
     ...howToSave,
     ...WHAT_NOT_TO_SAVE,
     ...WHEN_TO_ACCESS,
-    ...(opts.citeMemories ? CITING : []),
-    ...BEFORE_RECOMMENDING,
-    ...OTHER_PERSISTENCE,
   ].join("\n");
 }
