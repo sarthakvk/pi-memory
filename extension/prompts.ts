@@ -112,11 +112,6 @@ export interface PolicyPromptOptions {
   indexMaxLines: number;
   /** Pinned cap, quoted into the pinning bullet. */
   maxPinned: number;
-  /**
-   * Include `## Citing memories`. Off by default because pi has no render hook
-   * to strip the tags before the user sees them (REQ-WRITE-22).
-   */
-  citeMemories?: boolean;
   /** Section title. Defaults to "Memory". */
   displayName?: string;
 }
