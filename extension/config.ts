@@ -31,7 +31,6 @@ export interface MemoryConfig {
   indexMaxLines: number;
   indexMaxBytes: number;
   maxPinned: number;
-  citeMemories: boolean;
 }
 
 /**
@@ -57,10 +56,6 @@ export const DEFAULTS: MemoryConfig = {
   indexMaxLines: 200,
   indexMaxBytes: 25000,
   maxPinned: 8,
-  // Citation tags are an internal channel: they only work if something strips
-  // them before the user sees the reply. Pi has no render hook that can, so
-  // leaving this on would surface raw XML in replies. Default off.
-  citeMemories: false,
 };
 
 export const CONFIG_FILENAME = "memory-config.json";
@@ -76,7 +71,9 @@ function pickString(v: unknown, fallback: string): string {
 }
 
 function pickPositiveInt(v: unknown, fallback: number): number {
-  return typeof v === "number" && Number.isFinite(v) && v >= 0 ? Math.floor(v) : fallback;
+  return typeof v === "number" && Number.isFinite(v) && v >= 0
+    ? Math.floor(v)
+    : fallback;
 }
 
 /** Expand a leading `~` to the user's home directory. */
@@ -88,10 +85,13 @@ export function expandHome(p: string, home = homedir()): string {
 
 /** Merge a parsed JSON object over the defaults. Never throws. */
 export function mergeConfig(raw: unknown): MemoryConfig {
-  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) return { ...DEFAULTS };
+  if (typeof raw !== "object" || raw === null || Array.isArray(raw))
+    return { ...DEFAULTS };
   const o = raw as Record<string, unknown>;
   const rawSelector =
-    typeof o.selector === "object" && o.selector !== null && !Array.isArray(o.selector)
+    typeof o.selector === "object" &&
+    o.selector !== null &&
+    !Array.isArray(o.selector)
       ? (o.selector as Record<string, unknown>)
       : {};
 
@@ -102,10 +102,19 @@ export function mergeConfig(raw: unknown): MemoryConfig {
     selector: {
       enabled: pickBoolean(rawSelector.enabled, DEFAULTS.selector.enabled),
       model: pickString(rawSelector.model, DEFAULTS.selector.model),
-      maxSelected: pickPositiveInt(rawSelector.maxSelected, DEFAULTS.selector.maxSelected),
-      timeoutMs: pickPositiveInt(rawSelector.timeoutMs, DEFAULTS.selector.timeoutMs),
+      maxSelected: pickPositiveInt(
+        rawSelector.maxSelected,
+        DEFAULTS.selector.maxSelected,
+      ),
+      timeoutMs: pickPositiveInt(
+        rawSelector.timeoutMs,
+        DEFAULTS.selector.timeoutMs,
+      ),
     },
-    maxSessionBytes: pickPositiveInt(o.maxSessionBytes, DEFAULTS.maxSessionBytes),
+    maxSessionBytes: pickPositiveInt(
+      o.maxSessionBytes,
+      DEFAULTS.maxSessionBytes,
+    ),
     maxFiles: pickPositiveInt(o.maxFiles, DEFAULTS.maxFiles),
     scanMaxLines: pickPositiveInt(o.scanMaxLines, DEFAULTS.scanMaxLines),
     scanMaxBytes: pickPositiveInt(o.scanMaxBytes, DEFAULTS.scanMaxBytes),
@@ -114,7 +123,6 @@ export function mergeConfig(raw: unknown): MemoryConfig {
     indexMaxLines: pickPositiveInt(o.indexMaxLines, DEFAULTS.indexMaxLines),
     indexMaxBytes: pickPositiveInt(o.indexMaxBytes, DEFAULTS.indexMaxBytes),
     maxPinned: pickPositiveInt(o.maxPinned, DEFAULTS.maxPinned),
-    citeMemories: pickBoolean(o.citeMemories, DEFAULTS.citeMemories),
   };
 }
 
@@ -155,7 +163,11 @@ export interface ResolvedDirs {
  * Resolve scope roots. `projectDir` is relative to cwd unless absolute; the
  * caller decides whether it exists.
  */
-export function resolveDirs(config: MemoryConfig, cwd: string, home = homedir()): ResolvedDirs {
+export function resolveDirs(
+  config: MemoryConfig,
+  cwd: string,
+  home = homedir(),
+): ResolvedDirs {
   const privateDir = resolve(expandHome(config.dir, home));
   const projectRaw = expandHome(config.projectDir, home);
   const projectDir = config.projectDir
