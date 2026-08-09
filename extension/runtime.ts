@@ -2,7 +2,7 @@
  * Session state, injection assembly, and command rendering.
  *
  * Deliberately free of pi and pi-ai imports so the whole pipeline can be
- * driven headlessly (SPEC.md §11). `index.ts` supplies the pi context and the
+ * driven headlessly. `index.ts` supplies the pi context and the
  * real provider call; everything below only sees plain data and a `CompleteFn`.
  */
 
@@ -47,7 +47,7 @@ export interface TurnRecord {
   dropped: number;
 }
 
-/** REQ-CMD-4 — session-scoped counters, reset with the session. */
+/** Session-scoped counters, reset with the session. */
 export interface Counters {
   turns: number;
   scans: number;
@@ -56,7 +56,7 @@ export interface Counters {
   pinnedInjected: number;
   surfacedMemories: number;
   surfacedBytes: number;
-  /** Turns where no scope root existed, so nothing was injected (REQ-INJECT-10). */
+  /** Turns where no scope root existed, so nothing was injected. */
   turnsWithNoScope: number;
 }
 
@@ -76,13 +76,13 @@ export function newCounters(): Counters {
 export interface SessionState {
   config: MemoryConfig;
   dirs: ResolvedDirs;
-  /** Project scope root, present only when it exists on disk (REQ-CFG-6). */
+  /** Project scope root, present only when it exists on disk. */
   teamDir: string | undefined;
   files: MemoryFile[];
   dropped: number;
   budget: SessionBudget;
   selector: SelectorConversation | undefined;
-  /** Set once the selector model proves unusable; recall stays off (REQ-FAIL-2). */
+  /** Set once the selector model proves unusable; recall stays off. */
   selectorDisabledReason: string | undefined;
   lastTurn: TurnRecord | undefined;
   counters: Counters;
@@ -95,7 +95,7 @@ export function agentDir(): string {
   return join(homedir(), ".pi", "agent");
 }
 
-/** Create the memory dir, swallowing failures (REQ-INJECT-11). */
+/** Create the memory dir, swallowing failures. */
 function ensureDir(path: string): void {
   try {
     mkdirSync(path, { recursive: true });
@@ -113,7 +113,7 @@ export function liveRoots(s: SessionState): Array<{ root: string; scope: MemoryS
 }
 
 export function rescan(s: SessionState): void {
-  const result = scanAll(liveRoots(s), s.config); // REQ-LIMIT-2
+  const result = scanAll(liveRoots(s), s.config);
   s.files = result.files;
   s.dropped = result.dropped;
   s.counters.scans++;
@@ -122,8 +122,8 @@ export function rescan(s: SessionState): void {
 }
 
 /**
- * Build session state. Returns undefined when the extension is switched off
- * (REQ-CFG-7). `configDir` defaults to pi's agent directory.
+ * Build session state. Returns undefined when the extension is switched off.
+ * `configDir` defaults to pi's agent directory.
  */
 export function initSession(cwd: string, configDir = agentDir()): SessionState | undefined {
   const config = loadConfig(configDir);
@@ -171,7 +171,7 @@ export function attachSelector(s: SessionState, complete: CompleteFn): SelectorC
 
 /**
  * Run one selection. Honours the config switch, the disabled-model latch, and
- * the session byte budget (REQ-CFG-8, REQ-FAIL-2, REQ-LIMIT-1).
+ * the session byte budget.
  */
 export async function runSelector(
   s: SessionState,
@@ -188,7 +188,7 @@ export async function runSelector(
 }
 
 /**
- * REQ-INJECT-1 — assemble the turn's injection and record what it contained.
+ * Assemble the turn's injection and record what it contained.
  * Side effects: charges the session budget and marks surfaced paths.
  */
 export function buildInjection(
@@ -208,7 +208,7 @@ export function buildInjection(
     dropped: s.dropped,
   };
 
-  // REQ-INJECT-10 — no scope root on disk means nothing to say about memory.
+  // No scope root on disk means nothing to say about memory.
   if (liveRoots(s).length === 0) {
     s.counters.turnsWithNoScope++;
     return { prompt: systemPrompt, record: emptyRecord };
@@ -237,8 +237,8 @@ export function buildInjection(
 
   const selectedBytes = surfaced.reduce((n, m) => n + m.bytes, 0);
   if (surfaced.length > 0) {
-    s.budget.add(selectedBytes); // REQ-LIMIT-1
-    s.selector?.markSurfaced(surfaced.map((m) => m.path)); // REQ-SELECT-9
+    s.budget.add(selectedBytes);
+    s.selector?.markSurfaced(surfaced.map((m) => m.path));
   }
 
   s.counters.turns++;
@@ -269,7 +269,7 @@ export function buildInjection(
   };
 }
 
-/** One full turn: rescan, select, inject, record. Never throws (REQ-FAIL-5). */
+/** One full turn: rescan, select, inject, record. Never throws. */
 export async function runTurn(
   s: SessionState,
   systemPrompt: string,
@@ -376,7 +376,7 @@ export async function renderDryRun(
   ];
 }
 
-/** REQ-CMD-3 — write-path invariants (SPEC.md §7.1). Never modifies a file. */
+/** Write-path invariants. Never modifies a file. */
 export function renderDoctor(s: SessionState): string[] {
   rescan(s);
   return renderFindings(diagnose({ files: s.files, indexPath: s.dirs.indexPath }));

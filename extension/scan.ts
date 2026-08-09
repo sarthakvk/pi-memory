@@ -1,6 +1,5 @@
 /**
  * SCAN — directory walk, frontmatter extraction, ordering, caps.
- * See SPEC.md §4.
  */
 
 import { readdirSync } from "node:fs";
@@ -71,7 +70,7 @@ export function normalizeType(v: unknown): MemoryType | undefined {
 
 /**
  * Recursive `*.md` walk. Directory symlinks are not followed, so a symlink
- * loop cannot hang the scan (REQ-SCAN-1).
+ * loop cannot hang the scan.
  */
 function walkMarkdown(root: string): string[] {
   const out: string[] = [];
@@ -109,12 +108,12 @@ export interface ScanOptions {
 
 /**
  * Scan a single scope root. Returns unsorted, uncapped results — the caller
- * merges scopes before sorting and slicing (REQ-SCAN-5).
+ * merges scopes before sorting and slicing.
  */
 export function scanDir(root: string, scope: MemoryScope, opts: ScanOptions): MemoryFile[] {
   const out: MemoryFile[] = [];
   for (const rel of walkMarkdown(root)) {
-    // REQ-SCAN-4: MEMORY.md is the index, never a memory, at any depth.
+    // MEMORY.md is the index, never a memory, at any depth.
     if (basename(rel) === INDEX_FILENAME) continue;
 
     const filePath = join(root, rel);
@@ -122,7 +121,7 @@ export function scanDir(root: string, scope: MemoryScope, opts: ScanOptions): Me
     try {
       read = readBudgeted(filePath, opts.scanMaxLines, opts.scanMaxBytes);
     } catch {
-      continue; // REQ-SCAN-12
+      continue;
     }
 
     const { frontmatter, body } = parseMemoryFile(read.content);
@@ -157,7 +156,7 @@ export interface ScanResult {
 /**
  * Scan every existing scope root, sort newest-first by mtime, cap at maxFiles.
  * A root that does not exist or cannot be walked contributes nothing
- * (REQ-SCAN-9); the scan as a whole never throws.
+ * The scan as a whole never throws.
  */
 export function scanAll(
   roots: Array<{ root: string; scope: MemoryScope }>,
@@ -168,7 +167,7 @@ export function scanAll(
     try {
       all.push(...scanDir(root, scope, config));
     } catch {
-      // REQ-SCAN-9 / REQ-FAIL-3
+      // A missing or invalid root contributes nothing.
     }
   }
   all.sort((a, b) => b.mtimeMs - a.mtimeMs);

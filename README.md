@@ -2,10 +2,8 @@
 
 A persistent, file-based memory architecture for the pi coding agent.
 
-`SPEC.md` is the source of truth. It is written before the code, carries a
-stable `REQ-<AREA>-<n>` id for every requirement, and gives the rationale for
-every prompt, constant, and routing rule. Every test names the requirements it
-covers.
+The extension is intentionally small and keeps its behavior documented in
+source comments and executable tests.
 
 ## What it does
 
@@ -30,7 +28,7 @@ ln -s ~/src/pi-memory/extension ~/.pi/agent/extensions/memory
 ```
 
 Then `/reload` in pi. Configure via `~/.pi/agent/memory-config.json`; every key
-is optional (defaults and their rationale are in SPEC.md section 3).
+is optional; omitted keys use the built-in defaults.
 
 ## Commands
 
@@ -47,11 +45,5 @@ is optional (defaults and their rationale are in SPEC.md section 3).
 node test/run.ts
 ```
 
-No dependencies, no network, no model calls. The runner prints the REQ ids
-covered by passing tests. SPEC.md section 11 lists what the headless suite
-cannot verify and has to be checked interactively.
-
-## Requirement coverage
-
-`node test/run.ts` prints the REQ ids covered by passing tests and the runner
-cross-checks against SPEC.md. 156 cases, 85/85 requirements covered.
+No dependencies, no network, no model calls. The headless suite covers the
+pure extension modules; interactive pi behavior still needs to be checked in pi.

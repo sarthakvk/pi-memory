@@ -2,8 +2,8 @@
  * Minimal headless test harness.
  *
  * No dependencies: the pure extension modules import nothing but `node:*`, so
- * `node test/run.ts` exercises every requirement outside SPEC.md §11's
- * interactive list without a pi process and without network access.
+ * `node test/run.ts` exercises the extension without a pi process and without
+ * network access.
  */
 
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync, utimesSync } from "node:fs";
@@ -11,16 +11,14 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 
 export interface TestCase {
-  /** REQ ids this case covers. Printed with the result. */
-  reqs: string[];
   name: string;
   fn: () => void | Promise<void>;
 }
 
 const registry: TestCase[] = [];
 
-export function test(reqs: string | string[], name: string, fn: TestCase["fn"]): void {
-  registry.push({ reqs: Array.isArray(reqs) ? reqs : [reqs], name, fn });
+export function test(name: string, fn: TestCase["fn"]): void {
+  registry.push({ name, fn });
 }
 
 export function getTests(): TestCase[] {

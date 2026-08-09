@@ -4,8 +4,7 @@
  * These strings are the extension's whole behavioural surface: the policy
  * prompt is what teaches the main model to write memories, and the selector
  * prompt is what decides which memories come back. Both are load-bearing text —
- * edit them the way you would edit code, and see SPEC.md §5.3 and §7 for the
- * requirement each block satisfies.
+ * edit them the way you would edit code, alongside the tests that exercise them.
  */
 
 import { INDEX_FILENAME } from "./config.ts";
@@ -15,7 +14,7 @@ import { INDEX_FILENAME } from "./config.ts";
 // ---------------------------------------------------------------------------
 
 /**
- * The selector's whole instruction set (REQ-SELECT-5). It names "the coding
+ * The selector's whole instruction set. It names "the coding
  * agent" rather than any specific product, because the selector is describing
  * whichever agent this extension is loaded into.
  */
@@ -62,7 +61,7 @@ const FRONTMATTER_TEMPLATE = [
 ];
 
 /**
- * The exclusion list (REQ-WRITE-6). The fourth bullet names AGENTS.md because
+ * The exclusion list. The fourth bullet names AGENTS.md because
  * that is pi's context-file name.
  */
 const WHAT_NOT_TO_SAVE = [
@@ -95,7 +94,7 @@ const WHEN_TO_ACCESS = [
  * Pinning is orthogonal to the index: the index gives cheap always-on breadth,
  * pinning gives unconditional depth. Running both raises a question neither
  * mechanism answers alone — whether a pinned memory also gets an index entry.
- * It does not; see REQ-WRITE-19/20 and SPEC.md §7.
+ * It does not; a pinned memory is already injected in full.
  */
 const PINNING_BULLETS = [
   "- Add `pinned: true` under `metadata` only for memories that must apply to every conversation regardless of topic. Pinned memories are injected unconditionally; at most {{maxPinned}} are loaded, newest first.",
@@ -120,7 +119,7 @@ export interface PolicyPromptOptions {
  * Build the memory policy prompt: the index-based save flow and the
  * two-scope directory sentences.
  *
- * Deterministic: same options in, byte-identical string out (REQ-WRITE-12).
+ * Deterministic: same options in, byte-identical string out.
  */
 export function buildPolicyPrompt(opts: PolicyPromptOptions): string {
   const { privateDir, teamDir, indexMaxLines, maxPinned } = opts;

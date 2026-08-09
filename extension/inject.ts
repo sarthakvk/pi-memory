@@ -1,6 +1,5 @@
 /**
  * INJECT + LIMIT — staleness, pinned block, index truncation, surfaced bodies.
- * See SPEC.md §6 and §8.
  */
 
 import { readFileSync } from "node:fs";
@@ -62,7 +61,7 @@ export interface PinnedEntry {
 
 /**
  * Returns "" when there is nothing pinned so the caller can omit the section
- * entirely (REQ-INJECT-1).
+ * entirely.
  */
 export function buildPinnedBlock(entries: PinnedEntry[]): string {
   if (entries.length === 0) return "";
@@ -79,7 +78,7 @@ export function buildPinnedBlock(entries: PinnedEntry[]): string {
 
 /**
  * Read pinned memory bodies and build the block. Files that cannot be read are
- * skipped (REQ-FAIL-4). Staleness is prepended per REQ-INJECT-2.
+ * skipped. Staleness is prepended to old entries.
  */
 export function pinnedBlockFor(
   files: MemoryFile[],
@@ -176,8 +175,8 @@ export function truncateWithWarning(
 export const EMPTY_INDEX_TEXT = `Your ${INDEX_FILENAME} is currently empty. When you save new memories, they will appear here.`;
 
 /**
- * REQ-INJECT-6/7 — the `## MEMORY.md` section. A missing or blank index still
- * produces the section, carrying the "currently empty" sentence.
+ * The `## MEMORY.md` section. A missing or blank index still produces the
+ * section, carrying the "currently empty" sentence.
  */
 export function indexSection(
   indexPath: string,
@@ -220,7 +219,7 @@ export interface SurfacedMemory {
 
 /**
  * Read each selected memory under the surfacing budget and append the
- * truncation notice when a limit bites (REQ-INJECT-9).
+ * truncation notice when a limit bites.
  */
 export function readForSurfacing(
   files: Array<{ filePath: string; mtimeMs: number }>,
@@ -254,7 +253,7 @@ export function readForSurfacing(
   return out;
 }
 
-/** REQ-INJECT-8 — render surfaced memories as one block. */
+/** Render surfaced memories as one block. */
 export function buildSurfacedBlock(memories: SurfacedMemory[]): string {
   if (memories.length === 0) return "";
   return memories.map((m) => `${m.header}\n${m.content}`).join("\n\n");
@@ -272,8 +271,8 @@ export interface InjectionParts {
 }
 
 /**
- * REQ-INJECT-1 — append the non-empty sections to the incoming system prompt,
- * separated by blank lines. Never replaces or reorders what came in.
+ * Append the non-empty sections to the incoming system prompt, separated by
+ * blank lines. Never replaces or reorders what came in.
  */
 export function assemble(systemPrompt: string, parts: Partial<InjectionParts>): string {
   const blocks = [parts.policy, parts.index, parts.pinned, parts.surfaced].filter(
