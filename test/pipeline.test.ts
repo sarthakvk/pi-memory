@@ -369,6 +369,10 @@ test("/memory dry-run selects the right file and rejects an unrelated one", asyn
   assertNotIncludes(text, "selected: testing.md, hallucinated.md");
   assertIncludes(text, "listing sent:");
   assertIncludes(text, "- [project] testing.md");
+  assertIncludes(text, "final system prompt (memory extension):");
+  assertIncludes(text, "# Memory");
+  assertIncludes(text, "## MEMORY.md");
+  assertIncludes(text, "bun test");
 });
 
 test("/memory dry-run without a query prints usage", async () => {
