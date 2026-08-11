@@ -8,6 +8,7 @@ import type { MemoryFile } from "./scan.ts";
 import { INDEX_FILENAME } from "./config.ts";
 
 const MS_PER_DAY = 86400000;
+const STALENESS_SENTENCE = readFileSync(new URL("../prompt/staleness.md", import.meta.url), "utf8").trim();
 
 /** Whole days since `mtimeMs`, never negative. */
 export function ageInDays(mtimeMs: number, now = Date.now()): number {
@@ -18,11 +19,7 @@ export function ageInDays(mtimeMs: number, now = Date.now()): number {
 export function stalenessSentence(mtimeMs: number, now = Date.now()): string {
   const days = ageInDays(mtimeMs, now);
   if (days <= 1) return "";
-  return (
-    `This memory is ${days} days old. ` +
-    "Memories are point-in-time observations, not live state — " +
-    "claims about code behavior or file:line citations may be outdated. Verify against current code before asserting as fact."
-  );
+  return STALENESS_SENTENCE.replace("__DAYS__", String(days));
 }
 
 /** The staleness sentence wrapped for the pinned block. */
