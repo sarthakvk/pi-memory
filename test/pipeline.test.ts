@@ -32,6 +32,7 @@ import {
   type SessionState,
 } from "../extension/runtime.ts";
 import { SELECTOR_TOOL_NAME, type CompleteFn } from "../extension/selector.ts";
+import { buildPolicyPrompt } from "../extension/prompts.ts";
 
 interface Fixture {
   state: SessionState;
@@ -70,6 +71,34 @@ function provider(names: string[]): CompleteFn {
 }
 
 // ---------------------------------------------------------------------------
+
+test("single-scope policy preserves the private-only location sentence", () => {
+  const prompt = buildPolicyPrompt({
+    privateDir: "/private",
+    indexMaxLines: 200,
+    maxPinned: 8,
+  });
+  assertIncludes(
+    prompt,
+    "You have a persistent, file-based memory system at `/private`. This directory already exists",
+  );
+  assertNotIncludes(prompt, "at `/private` (private to this user)");
+});
+
+test("policy preserves dollar sequences in runtime values", () => {
+  const prompt = buildPolicyPrompt({
+    privateDir: "/tmp/$&/private",
+    teamDir: "/tmp/$`/team",
+    indexMaxLines: 200,
+    maxPinned: 8,
+    displayName: "Memory $' title",
+  });
+  assertIncludes(prompt, "# Memory $' title");
+  assertIncludes(prompt, "at `/tmp/$&/private` (private to this user) and `/tmp/$`/team`");
+  assertNotIncludes(prompt, "__DISPLAY_NAME__");
+  assertNotIncludes(prompt, "__PRIVATE_DIR__");
+  assertNotIncludes(prompt, "__TEAM_DIR__");
+});
 
 test("a turn injects policy, index and pinned block", async () => {
   const f = fixture();

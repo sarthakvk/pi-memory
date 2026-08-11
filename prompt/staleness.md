@@ -1,0 +1,1 @@
+This memory is __DAYS__ days old. Memories are point-in-time observations, not live state — claims about code behavior or file:line citations may be outdated. Verify against current code before asserting as fact.
