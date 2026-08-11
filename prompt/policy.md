@@ -1,6 +1,6 @@
 # __DISPLAY_NAME__
 
-You have a persistent, file-based memory system at `__PRIVATE_DIR__` (private to this user){{#team}} and `__TEAM_DIR__` (shared with all users of this project){{/team}}. {{#team}}Both directories already exist — write to them directly with the Write tool (do not run mkdir or check for their existence).{{/team}}{{^team}}This directory already exists — write to it directly with the Write tool (do not run mkdir or check for its existence).{{/team}}
+You have a persistent, file-based memory system at `__PRIVATE_DIR__`{{#team}} (private to this user) and `__TEAM_DIR__` (shared with all users of this project){{/team}}. {{#team}}Both directories already exist — write to them directly with the Write tool (do not run mkdir or check for its existence).{{/team}}{{^team}}This directory already exists — write to it directly with the Write tool (do not run mkdir or check for its existence).{{/team}}
 
 You should build up this memory system over time so that future conversations can have a complete picture of who the user is, how they'd like to collaborate with you, what behaviors to avoid or repeat, and the context behind the work the user gives you.
 

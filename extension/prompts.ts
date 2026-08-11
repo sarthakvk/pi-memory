@@ -18,6 +18,21 @@ function readPrompt(filename: string): string {
 const SELECTOR_SYSTEM_PROMPT = readPrompt("selector-system.md");
 export { SELECTOR_SYSTEM_PROMPT };
 
+/**
+ * Markdown template variables are resolved below. Double-underscore tokens are
+ * literal placeholders whose values come from `buildPolicyPrompt` options or
+ * runtime constants:
+ * - `__DISPLAY_NAME__`, `__PRIVATE_DIR__`, and `__TEAM_DIR__` are the heading
+ *   and scope paths.
+ * - `__INDEX_FILENAME__`, `__INDEX_MAX_LINES__`, and `__MAX_PINNED__` are
+ *   config values used in the index and pinning instructions.
+ * - `__FRONTMATTER_TEMPLATE__` and `__PINNING_BULLETS__` insert Markdown
+ *   fragments loaded from their respective prompt files.
+ * - `__SCOPE_GUIDANCE__` and `__TEAM_INDEX_GUIDANCE__` insert team-only text.
+ * The `{{#team}}...{{/team}}` section is included when `teamDir` exists;
+ * `{{^team}}...{{/team}}` is its no-team alternative. Keep these names
+ * synchronized with `renderPolicyTemplate` when editing the Markdown prompts.
+ */
 const POLICY_TEMPLATE = readPrompt("policy.md");
 const FRONTMATTER_TEMPLATE = readPrompt("frontmatter.md");
 const PINNING_BULLETS = readPrompt("pinning-bullets.md");
@@ -25,7 +40,9 @@ const TEAM_INDEX_GUIDANCE = readPrompt("team-index-guidance.md");
 const TEAM_SCOPE_GUIDANCE = readPrompt("team-scope.md");
 
 function replaceLine(template: string, token: string, value: string): string {
-  return value ? template.replace(token, value) : template.replace(`${token}\n`, "");
+  return value
+    ? template.replace(token, () => value)
+    : template.replace(`${token}\n`, "");
 }
 
 function renderPolicyTemplate(values: {
@@ -60,7 +77,7 @@ function renderPolicyTemplate(values: {
       .replaceAll("__MAX_PINNED__", String(values.maxPinned)),
   };
   for (const [token, value] of Object.entries(replacements)) {
-    prompt = prompt.replaceAll(token, value);
+    prompt = prompt.replaceAll(token, () => value);
   }
   return prompt;
 }
