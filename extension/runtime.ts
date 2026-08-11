@@ -172,6 +172,78 @@ export const NO_SELECTION: SelectorRunResult = {
   latencyMs: undefined,
 };
 
+interface PreparedInjection {
+  policy: string;
+  index: string;
+  indexTruncated: boolean;
+  pinned: string;
+  pinnedFiles: MemoryFile[];
+  pinnedBytes: number;
+  surfaced: string;
+  surfacedMemories: ReturnType<typeof readForSurfacing>;
+  selectedBytes: number;
+}
+
+/** Build the same blocks used for a turn, without charging or marking memory. */
+function prepareInjection(s: SessionState, selection: SelectorRunResult): PreparedInjection {
+  const policy = buildPolicyPrompt({
+    privateDir: s.dirs.privateDir,
+    teamDir: s.teamDir,
+    indexMaxLines: s.config.indexMaxLines,
+    maxPinned: s.config.maxPinned,
+  });
+  const index = indexSection(s.dirs.indexPath, s.config);
+  const { candidates } = pinnedCandidates(s.files, s.config.maxPinned);
+  const pinned = pinnedBlockFor(candidates, {
+    fileMaxLines: s.config.fileMaxLines,
+    fileMaxBytes: s.config.fileMaxBytes,
+  });
+  const surfacedMemories = readForSurfacing(
+    selection.selected.map((e) => ({
+      filePath: e.filePath,
+      mtimeMs: e.mtimeMs,
+    })),
+    {
+      fileMaxLines: s.config.fileMaxLines,
+      fileMaxBytes: s.config.fileMaxBytes,
+    },
+  );
+  const selectedBytes = surfacedMemories.reduce((n, m) => n + m.bytes, 0);
+
+  return {
+    policy,
+    index: index.section,
+    indexTruncated: Boolean(
+      index.truncation?.wasLineTruncated || index.truncation?.wasByteTruncated,
+    ),
+    pinned: pinned.block,
+    pinnedFiles: candidates,
+    pinnedBytes: pinned.bytes,
+    surfaced: buildSurfacedBlock(surfacedMemories),
+    surfacedMemories,
+    selectedBytes,
+  };
+}
+
+/**
+ * Build the exact memory-extension prompt that would be appended to a turn.
+ * This is intentionally side-effect free so `/memory dry-run` does not spend
+ * budget or mark memories as surfaced.
+ */
+export function buildPreviewPrompt(
+  s: SessionState,
+  selection: SelectorRunResult,
+): string {
+  if (liveRoots(s).length === 0) return "";
+  const prepared = prepareInjection(s, selection);
+  return assemble("", {
+    policy: prepared.policy,
+    index: prepared.index,
+    pinned: prepared.pinned,
+    surfaced: prepared.surfaced,
+  });
+}
+
 /**
  * Attach a selector to the session. `index.ts` calls this once it has resolved
  * a model and credentials; tests pass a mock `CompleteFn`.
@@ -233,63 +305,36 @@ export function buildInjection(
     return { prompt: systemPrompt, record: emptyRecord };
   }
 
-  const policy = buildPolicyPrompt({
-    privateDir: s.dirs.privateDir,
-    teamDir: s.teamDir,
-    indexMaxLines: s.config.indexMaxLines,
-    maxPinned: s.config.maxPinned,
-  });
-
-  const index = indexSection(s.dirs.indexPath, s.config);
-
-  const { candidates } = pinnedCandidates(s.files, s.config.maxPinned);
-  const pinned = pinnedBlockFor(candidates, {
-    fileMaxLines: s.config.fileMaxLines,
-    fileMaxBytes: s.config.fileMaxBytes,
-  });
-
-  const surfaced = readForSurfacing(
-    selection.selected.map((e) => ({
-      filePath: e.filePath,
-      mtimeMs: e.mtimeMs,
-    })),
-    {
-      fileMaxLines: s.config.fileMaxLines,
-      fileMaxBytes: s.config.fileMaxBytes,
-    },
-  );
-
-  const selectedBytes = surfaced.reduce((n, m) => n + m.bytes, 0);
-  if (surfaced.length > 0) {
+  const prepared = prepareInjection(s, selection);
+  const selectedBytes = prepared.selectedBytes;
+  if (prepared.surfacedMemories.length > 0) {
     s.budget.add(selectedBytes);
-    s.selector?.markSurfaced(surfaced.map((m) => m.path));
+    s.selector?.markSurfaced(prepared.surfacedMemories.map((m) => m.path));
   }
 
   s.counters.turns++;
-  s.counters.pinnedInjected += candidates.length;
-  s.counters.surfacedMemories += surfaced.length;
+  s.counters.pinnedInjected += prepared.pinnedFiles.length;
+  s.counters.surfacedMemories += prepared.surfacedMemories.length;
   s.counters.surfacedBytes += selectedBytes;
 
   const record: TurnRecord = {
-    pinned: candidates.map((c) => c.filename),
-    pinnedBytes: pinned.bytes,
+    pinned: prepared.pinnedFiles.map((c) => c.filename),
+    pinnedBytes: prepared.pinnedBytes,
     selected: selection.selected.map((e) => e.filename),
     selectedBytes,
     selectorReason: selection.reason,
     selectorLatencyMs: selection.latencyMs,
-    indexTruncated: Boolean(
-      index.truncation?.wasLineTruncated || index.truncation?.wasByteTruncated,
-    ),
+    indexTruncated: prepared.indexTruncated,
     scanned: s.files.length,
     dropped: s.dropped,
   };
 
   return {
     prompt: assemble(systemPrompt, {
-      policy,
-      index: index.section,
-      pinned: pinned.block,
-      surfaced: buildSurfacedBlock(surfaced),
+      policy: prepared.policy,
+      index: prepared.index,
+      pinned: prepared.pinned,
+      surfaced: prepared.surfaced,
     }),
     record,
   };
@@ -418,6 +463,7 @@ export async function renderDryRun(
   if (!query.trim()) return ["usage: /memory dry-run <query>"];
   rescan(s);
   const result = await runSelector(s, query, signal);
+  const finalPrompt = buildPreviewPrompt(s, result);
   return [
     `dry-run: ${JSON.stringify(query)}`,
     `  verdict:  ${result.reason}${result.latencyMs !== undefined ? ` in ${result.latencyMs}ms` : ""}`,
@@ -427,6 +473,10 @@ export async function renderDryRun(
     ...(result.listing
       ? result.listing.split("\n").map((l) => `    ${l}`)
       : ["    (empty)"]),
+    "  final system prompt (memory extension):",
+    ...(finalPrompt
+      ? finalPrompt.split("\n").map((l) => `    ${l}`)
+      : ["    (no memory prompt injected)"]),
   ];
 }
 
