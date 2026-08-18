@@ -273,7 +273,7 @@ test("section order is policy, index, pinned, surfaced", async () => {
   const iPolicy = out.indexOf("# Memory");
   const iIndex = out.indexOf("## MEMORY.md");
   const iPinned = out.indexOf("# Pinned memories");
-  const iSurfaced = out.indexOf("Memory: ");
+  const iSurfaced = out.indexOf(`<memory path="${join(userDir, "a.md")}">`);
   assert(iPolicy >= 0 && iIndex > iPolicy, "index follows policy");
   assert(iPinned > iIndex, "pinned follows index");
   assert(iSurfaced > iPinned, "surfaced follows pinned");

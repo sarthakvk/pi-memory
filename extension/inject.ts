@@ -173,10 +173,9 @@ export function emptyIndexText(scope: MemoryScope): string {
   return `Your ${scope} ${INDEX_FILENAME} is currently empty. When you save new ${scope} memories, they will appear here.`;
 }
 
-/** Heading for one scope's index. Both files are named MEMORY.md, so the
- * heading carries the path that distinguishes them. */
-export function indexHeading(scope: MemoryScope, indexPath: string): string {
-  return `## ${INDEX_FILENAME} — ${scope} memory (${indexPath})`;
+/** Heading for one scope's index. The surrounding tag carries its path. */
+export function indexHeading(scope: MemoryScope, _indexPath: string): string {
+  return `## ${INDEX_FILENAME} — ${scope} memory`;
 }
 
 /**
@@ -205,14 +204,22 @@ export function indexSection(
   };
 }
 
+/** Render an index as tagged reference data for the main model. */
+export function buildIndexBlock(path: string, scope: MemoryScope, section: string): string {
+  return (
+    `<memory-index scope="${sanitizeAttr(scope)}" path="${sanitizeAttr(path)}">\n` +
+    `${scrubCloseTag("memory-index", section)}\n` +
+    `</memory-index>`
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Surfaced (selected) memories
 // ---------------------------------------------------------------------------
 
-/** Header line for a surfaced memory, staleness sentence above it when stale. */
-export function memoryHeader(path: string, mtimeMs: number, now = Date.now()): string {
-  const s = stalenessSentence(mtimeMs, now);
-  return s ? `${s}\nMemory: ${path}:` : `Memory: ${path}:`;
+/** Staleness header for a surfaced memory; its path is carried by the tag. */
+export function memoryHeader(_path: string, mtimeMs: number, now = Date.now()): string {
+  return stalenessSentence(mtimeMs, now);
 }
 
 export interface SurfacedMemory {
@@ -247,7 +254,7 @@ export function readForSurfacing(
       ? read.content +
         `\n> This memory file was truncated (${
           read.truncatedByBytes ? `${opts.fileMaxBytes} byte limit` : `first ${opts.fileMaxLines} lines`
-        }). Use the ${readTool} tool to view the complete file at: ${f.filePath}`
+        }). Use the ${readTool} tool with the path from this tag to view the complete file.`
       : read.content;
     out.push({
       path: f.filePath,
@@ -265,7 +272,7 @@ export function buildSurfacedBlock(memories: SurfacedMemory[]): string {
   if (memories.length === 0) return "";
   return memories
     .map((m) => {
-      const content = `${m.header}\n${m.content}`;
+      const content = [m.header, m.content].filter((part) => part !== "").join("\n");
       return (
         `<memory path="${sanitizeAttr(m.path)}">\n` +
         `${scrubCloseTag("memory", content)}\n` +
