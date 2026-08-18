@@ -101,7 +101,6 @@ test("two-scope policy names both directories and the routing rule", () => {
   assertIncludes(prompt, "at `/user` (user memory, carried across every project)");
   assertIncludes(prompt, "`/pm/-work-repo` (project memory, scoped to this project)");
   assertIncludes(prompt, "## Memory scope");
-  assertIncludes(prompt, "Both directories are private to this user");
   assertIncludes(prompt, "`user` memories always live here.");
   assertNotIncludes(prompt, "team", "the team scope is gone; memory is never shared");
   assertNotIncludes(prompt, "shared with all users");

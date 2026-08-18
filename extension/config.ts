@@ -6,6 +6,7 @@
  * its default. Unknown keys are ignored.
  */
 
+import { createHash } from "node:crypto";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { existsSync, readFileSync } from "node:fs";
@@ -182,20 +183,18 @@ export function findProjectRoot(cwd: string): string {
 }
 
 /**
- * Flatten an absolute path into a single directory name: every run of
- * non-alphanumeric characters becomes `-`, so `/home/u/src/app` becomes
- * `-home-u-src-app`.
- *
- * Readability is the point — someone listing `project-memory/` should recognise
- * their repos. Two different paths can in principle collide (`/a/b-c` and
- * `/a-b/c`); a hash suffix would prevent it at the cost of making every name
- * unreadable, which is a bad trade for a directory humans browse.
+ * Flatten an absolute path into a readable directory name and append a stable
+ * hash. The readable part makes the directory recognisable when browsing, and
+ * the hash keeps distinct paths distinct (`/a/b-c` and `/a-b/c` would otherwise
+ * both become `-a-b-c`).
  */
 export function projectSlug(projectRoot: string): string {
-  const slug = resolve(projectRoot)
+  const normalized = resolve(projectRoot);
+  const readable = normalized
     .replace(/[^A-Za-z0-9]+/g, "-")
     .replace(/-+$/, "");
-  return slug === "" ? "root" : slug;
+  const hash = createHash("sha256").update(normalized).digest("hex").slice(0, 16);
+  return `${readable === "" ? "root" : readable}--${hash}`;
 }
 
 export interface ResolvedDirs {

@@ -64,10 +64,12 @@ test("a leading ~ expands to the home directory", () => {
   assertEqual(expandHome("relative/path", "/home/u"), "relative/path");
 });
 
-test("a project path flattens to a readable slug", () => {
-  assertEqual(projectSlug("/home/u/src/app"), "-home-u-src-app");
-  assertEqual(projectSlug("/home/u/src/app/"), "-home-u-src-app");
-  assertEqual(projectSlug("/home/u/my.repo_2"), "-home-u-my-repo-2");
+test("a project path gets a readable, stable and collision-resistant slug", () => {
+  const slug = projectSlug("/home/u/src/app");
+  assert(slug.startsWith("-home-u-src-app--"), "the readable path remains visible");
+  assertEqual(projectSlug("/home/u/src/app/"), slug, "trailing separators do not change the key");
+  assert(projectSlug("/home/u/my.repo_2").startsWith("-home-u-my-repo-2--"));
+  assert(projectSlug("/a/b-c") !== projectSlug("/a-b/c"), "different paths must not share a slug");
   assert(projectSlug("/").length > 0, "the filesystem root still yields a usable name");
 });
 

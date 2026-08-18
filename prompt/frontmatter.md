@@ -8,4 +8,3 @@ metadata:
 
 <memory content — for feedback/project types, structure as: rule/fact, then **Why:** and **How to apply:** lines. Link related memories with [[their-name]].>
 ```
-
