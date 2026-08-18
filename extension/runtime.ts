@@ -20,6 +20,7 @@ import {
 } from "./config.ts";
 import {
   assemble,
+  buildIndexBlock,
   buildSurfacedBlock,
   indexSection,
   pinnedBlockFor,
@@ -200,9 +201,13 @@ function prepareInjection(s: SessionState, selection: SelectorRunResult): Prepar
     indexMaxLines: s.config.indexMaxLines,
     maxPinned: s.config.maxPinned,
   });
-  const indexes = liveIndexes(s).map(({ indexPath, scope }) =>
-    indexSection(indexPath, scope, s.config),
-  );
+  const indexes = liveIndexes(s).map(({ indexPath, scope }) => {
+    const index = indexSection(indexPath, scope, s.config);
+    return {
+      ...index,
+      section: buildIndexBlock(indexPath, scope, index.section),
+    };
+  });
   const { candidates } = pinnedCandidates(s.files, s.config.maxPinned);
   const pinned = pinnedBlockFor(candidates, {
     fileMaxLines: s.config.fileMaxLines,
