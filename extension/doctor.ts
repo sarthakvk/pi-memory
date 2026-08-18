@@ -11,8 +11,8 @@
 
 import { readFileSync } from "node:fs";
 import { NAME_PATTERN } from "./frontmatter.ts";
-import { INDEX_FILENAME } from "./config.ts";
-import type { MemoryFile } from "./scan.ts";
+import { INDEX_FILENAME, PROJECT_PREFIX } from "./config.ts";
+import type { MemoryFile, MemoryScope, MemoryType } from "./scan.ts";
 
 export type FindingKind =
   | "scope-violation"
@@ -64,29 +64,61 @@ export function descriptionKey(description: string): string {
 
 export interface DoctorInput {
   files: MemoryFile[];
-  indexPath: string;
+  /** One index per live scope. Each scope indexes only its own memories. */
+  indexes: Array<{ indexPath: string; scope: MemoryScope }>;
 }
+
+/** Display name for a scope-relative pointer. */
+function displayName(scope: MemoryScope, relPath: string): string {
+  return scope === "project" ? `${PROJECT_PREFIX}${relPath}` : relPath;
+}
+
+/**
+ * Which scope a memory of each type belongs in, when the routing rule is
+ * unconditional. `feedback` and `reference` are left out: either scope can be
+ * right for them, and only the author knows which.
+ */
+const REQUIRED_SCOPE: Partial<Record<MemoryType, MemoryScope>> = {
+  user: "user",
+  project: "project",
+};
+
+const SCOPE_REASON: Record<MemoryScope, string> = {
+  user: "facts about the user or their system stay true across projects, so they belong in user memory",
+  project: "project memory is scoped to this project, which is where project-specific facts belong",
+};
 
 /** Run every write-path invariant. Returns findings in a stable order. */
 export function diagnose(input: DoctorInput): Finding[] {
   const findings: Finding[] = [];
   const { files } = input;
 
-  let indexText = "";
-  try {
-    indexText = readFileSync(input.indexPath, "utf8");
-  } catch {
-    indexText = "";
+  // Pointers are per scope: each MEMORY.md indexes its own directory, with
+  // paths relative to that directory.
+  const pointersByScope = new Map<MemoryScope, Set<string>>();
+  for (const { indexPath, scope } of input.indexes) {
+    let indexText = "";
+    try {
+      indexText = readFileSync(indexPath, "utf8");
+    } catch {
+      indexText = "";
+    }
+    pointersByScope.set(scope, extractIndexPointers(indexText));
   }
-  const pointers = extractIndexPointers(indexText);
-  const known = new Set(files.map((f) => f.filename));
+  const knownByScope = new Map<MemoryScope, Set<string>>();
+  for (const f of files) {
+    const bucket = knownByScope.get(f.scope);
+    if (bucket) bucket.add(f.relPath);
+    else knownByScope.set(f.scope, new Set([f.relPath]));
+  }
 
   for (const f of files) {
-    if (f.type === "user" && f.scope === "project") {
+    const required = f.type ? REQUIRED_SCOPE[f.type] : undefined;
+    if (required !== undefined && f.scope !== required) {
       findings.push({
         kind: "scope-violation",
         subject: f.filename,
-        message: "`user` memories are always private; move this out of the team directory",
+        message: `\`${f.type}\` memories belong in ${required} memory — ${SCOPE_REASON[required]}`,
       });
     }
 
@@ -114,32 +146,35 @@ export function diagnose(input: DoctorInput): Finding[] {
 
     // A pinned memory should have no pointer; an unpinned one should have
     // exactly one. Both directions of the transition are caught here.
-    const indexed = pointers.has(f.filename);
+    const indexed = Boolean(pointersByScope.get(f.scope)?.has(f.relPath));
     const pinned = f.pinnedState === "true";
     if (pinned && indexed) {
       findings.push({
         kind: "pinned-and-indexed",
         subject: f.filename,
-        message: `pinned, so its body is already injected in full — remove its ${INDEX_FILENAME} pointer; the index line is budget that could keep an unpinned memory above the truncation cut-off`,
+        message: `pinned, so its body is already injected in full — remove its pointer from the ${f.scope} ${INDEX_FILENAME}; the index line is budget that could keep an unpinned memory above the truncation cut-off`,
       });
     } else if (!pinned && !indexed) {
       findings.push({
         kind: "unindexed",
         subject: f.filename,
-        message: `not pinned and no pointer in ${INDEX_FILENAME} — this memory is invisible to the model unless recall happens to select it. If it was just unpinned, add its index pointer`,
+        message: `not pinned and no pointer to \`${f.relPath}\` in the ${f.scope} ${INDEX_FILENAME} — this memory is invisible to the model unless recall happens to select it. If it was just unpinned, add its index pointer`,
       });
     }
   }
 
-  // Check the other direction.
-  for (const pointer of [...pointers].sort()) {
-    if (pointer === INDEX_FILENAME) continue;
-    if (known.has(pointer)) continue;
-    findings.push({
-      kind: "dangling-pointer",
-      subject: pointer,
-      message: `${INDEX_FILENAME} points at a memory that does not exist`,
-    });
+  // Check the other direction, scope by scope.
+  for (const { scope } of input.indexes) {
+    const known = knownByScope.get(scope) ?? new Set<string>();
+    for (const pointer of [...(pointersByScope.get(scope) ?? [])].sort()) {
+      if (pointer === INDEX_FILENAME) continue;
+      if (known.has(pointer)) continue;
+      findings.push({
+        kind: "dangling-pointer",
+        subject: displayName(scope, pointer),
+        message: `the ${scope} ${INDEX_FILENAME} points at a memory that does not exist in ${scope} memory`,
+      });
+    }
   }
 
   const byKey = new Map<string, string[]>();

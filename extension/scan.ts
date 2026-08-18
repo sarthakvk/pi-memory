@@ -6,10 +6,10 @@ import { readdirSync } from "node:fs";
 import { basename, join, posix, sep } from "node:path";
 import { parseMemoryFile } from "./frontmatter.ts";
 import { readBudgeted } from "./read.ts";
-import { INDEX_FILENAME, TEAM_PREFIX, type MemoryConfig } from "./config.ts";
+import { INDEX_FILENAME, PROJECT_PREFIX, type MemoryConfig } from "./config.ts";
 
 export type MemoryType = "user" | "feedback" | "project" | "reference";
-export type MemoryScope = "private" | "project";
+export type MemoryScope = "user" | "project";
 /** How `metadata.pinned` parsed: see `pinnedStateOf`. */
 export type PinnedState = "absent" | "malformed" | "true" | "false";
 
@@ -19,8 +19,10 @@ export const MEMORY_TYPES: MemoryType[] = ["user", "feedback", "project", "refer
 export const DESCRIPTION_MAX_CHARS = 120;
 
 export interface MemoryFile {
-  /** Scope-relative name, POSIX separators, `team/` prefixed for project scope. */
+  /** Display name: `relPath`, `project/` prefixed for the project scope. */
   filename: string;
+  /** Name relative to its own scope root — what its own index points at. */
+  relPath: string;
   /** Absolute path on disk. */
   filePath: string;
   scope: MemoryScope;
@@ -131,7 +133,8 @@ export function scanDir(root: string, scope: MemoryScope, opts: ScanOptions): Me
 
     const relPosix = toPosix(rel);
     out.push({
-      filename: scope === "project" ? `${TEAM_PREFIX}${relPosix}` : relPosix,
+      filename: scope === "project" ? `${PROJECT_PREFIX}${relPosix}` : relPosix,
+      relPath: relPosix,
       filePath,
       scope,
       mtimeMs: read.mtimeMs,

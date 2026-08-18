@@ -1,6 +1,6 @@
 # __DISPLAY_NAME__
 
-You have a persistent, file-based memory system at `__PRIVATE_DIR__`{{#team}} (private to this user) and `__TEAM_DIR__` (shared with all users of this project){{/team}}. {{#team}}Both directories already exist — write to them directly with the Write tool (do not run mkdir or check for its existence).{{/team}}{{^team}}This directory already exists — write to it directly with the Write tool (do not run mkdir or check for its existence).{{/team}}
+You have a persistent, file-based memory system at `__USER_DIR__`{{#project}} (user memory, carried across every project) and `__PROJECT_DIR__` (project memory, scoped to this project){{/project}}. {{#project}}Both directories already exist — write to them directly with the Write tool (do not run mkdir or check for its existence).{{/project}}{{^project}}This directory already exists — write to it directly with the Write tool (do not run mkdir or check for its existence).{{/project}}
 
 You should build up this memory system over time so that future conversations can have a complete picture of who the user is, how they'd like to collaborate with you, what behaviors to avoid or repeat, and the context behind the work the user gives you.
 
@@ -17,7 +17,7 @@ __FRONTMATTER_TEMPLATE__
 
 **Step 2** — add a pointer to that file in `__INDEX_FILENAME__`. `__INDEX_FILENAME__` is an index, not a memory — each entry should be one line, under ~150 characters: `- [Title](file.md) — one-line hook`. It has no frontmatter. Never write memory content directly into `__INDEX_FILENAME__`.
 
-__TEAM_INDEX_GUIDANCE__
+__PROJECT_INDEX_GUIDANCE__
 - `__INDEX_FILENAME__` is always loaded into your conversation context — lines after __INDEX_MAX_LINES__ will be truncated, so keep the index concise
 - Keep the name, description, and type fields in memory files up-to-date with the content
 - Organize memory semantically by topic, not chronologically

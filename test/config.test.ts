@@ -5,10 +5,13 @@ import {
   DEFAULTS,
   disabledByEnv,
   expandHome,
+  findProjectRoot,
   loadConfig,
   mergeConfig,
+  projectSlug,
   resolveDirs,
 } from "../extension/config.ts";
+import { mkdirSync } from "node:fs";
 
 test("defaults apply to every unset key", () => {
   const c = mergeConfig({ maxFiles: 7 });
@@ -61,20 +64,68 @@ test("a leading ~ expands to the home directory", () => {
   assertEqual(expandHome("relative/path", "/home/u"), "relative/path");
 });
 
-test("projectDir resolves relative to cwd", () => {
-  const dirs = resolveDirs(
-    mergeConfig({ dir: "~/.pi/agent/memory", projectDir: ".pi/memory" }),
-    "/work/repo",
-    "/home/u",
-  );
-  assertEqual(dirs.privateDir, "/home/u/.pi/agent/memory");
-  assertEqual(dirs.projectDir, "/work/repo/.pi/memory");
-  assertEqual(dirs.indexPath, "/home/u/.pi/agent/memory/MEMORY.md");
+test("a project path flattens to a readable slug", () => {
+  assertEqual(projectSlug("/home/u/src/app"), "-home-u-src-app");
+  assertEqual(projectSlug("/home/u/src/app/"), "-home-u-src-app");
+  assertEqual(projectSlug("/home/u/my.repo_2"), "-home-u-my-repo-2");
+  assert(projectSlug("/").length > 0, "the filesystem root still yields a usable name");
 });
 
-test("an absolute projectDir is used as-is", () => {
-  const dirs = resolveDirs(mergeConfig({ projectDir: "/elsewhere/mem" }), "/work/repo", "/home/u");
-  assertEqual(dirs.projectDir, "/elsewhere/mem");
+test("the project root is the nearest ancestor holding .git", () => {
+  const repo = makeTempDir("pi-memory-repo-");
+  const nested = join(repo, "packages", "web");
+  mkdirSync(nested, { recursive: true });
+  mkdirSync(join(repo, ".git"));
+  assertEqual(findProjectRoot(nested), repo, "a subdirectory resolves to the repo root");
+  assertEqual(findProjectRoot(repo), repo);
+});
+
+test("outside a repo the project root is cwd itself", () => {
+  const plain = makeTempDir("pi-memory-plain-");
+  assertEqual(findProjectRoot(plain), plain);
+});
+
+test("a worktree or submodule, where .git is a file, still resolves", () => {
+  const repo = makeTempDir("pi-memory-wt-");
+  writeFile(join(repo, ".git"), "gitdir: /elsewhere/.git/worktrees/wt\n");
+  assertEqual(findProjectRoot(join(repo, "sub")), repo);
+});
+
+test("project memory lives under the agent dir, keyed on the project path", () => {
+  const repo = makeTempDir("pi-memory-key-");
+  const dirs = resolveDirs(mergeConfig({ dir: "~/.pi/agent/memory" }), repo, "/home/u");
+  assertEqual(dirs.userDir, "/home/u/.pi/agent/memory");
+  assertEqual(dirs.projectRoot, repo);
+  assertEqual(
+    dirs.projectDir,
+    join("/home/u/.pi/agent/project-memory", projectSlug(repo)),
+    "nothing is written inside the project itself",
+  );
+});
+
+test("two projects get two different project memory directories", () => {
+  const a = makeTempDir("pi-memory-a-");
+  const b = makeTempDir("pi-memory-b-");
+  const dirsA = resolveDirs(mergeConfig({}), a, "/home/u");
+  const dirsB = resolveDirs(mergeConfig({}), b, "/home/u");
+  assert(dirsA.projectDir !== dirsB.projectDir, "project memory must not be shared between projects");
+});
+
+test("an empty projectMemoryRoot switches the project scope off", () => {
+  const dirs = resolveDirs(mergeConfig({ projectMemoryRoot: "" }), "/work/repo", "/home/u");
+  assertEqual(dirs.projectDir, undefined);
+  assertEqual(dirs.projectRoot, undefined);
+  assertEqual(dirs.userDir, "/home/u/.pi/agent/memory");
+});
+
+test("a projectMemoryRoot colliding with the user dir disables the project scope", () => {
+  const repo = makeTempDir("pi-memory-collide-");
+  const dirs = resolveDirs(
+    mergeConfig({ dir: join("/mem", projectSlug(repo)), projectMemoryRoot: "/mem" }),
+    repo,
+    "/home/u",
+  );
+  assertEqual(dirs.projectDir, undefined, "one directory cannot be both scopes");
 });
 
 test("PI_MEMORY_DISABLED gates the extension", () => {

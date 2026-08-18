@@ -1,0 +1,1 @@
+Each directory has its own `__INDEX_FILENAME__` and both are loaded into your context. A memory's pointer goes in the `__INDEX_FILENAME__` of the directory the memory file itself lives in, written relative to that directory — never point one scope's index at the other scope's files.

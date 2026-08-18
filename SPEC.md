@@ -26,15 +26,36 @@ Three retrieval tiers.
 | **selected** | every user message, LLM selector | ≤ 5 files chosen from name + type + description |
 | **on-demand** | the model's own judgement | any file, via the `read` tool |
 
-Two scopes, split on **private vs. team**:
+Two scopes, split on **user vs. project**:
 
-| Scope | Directory | Rationale |
+| Scope | Directory | Holds |
 |---|---|---|
-| private | `~/.pi/agent/memory/` | all projects, never shared |
-| team | `<project>/.pi/memory/` | git-tracked, travels with the repo |
+| user | `~/.pi/agent/memory/` | what stays true across every project |
+| project | `~/.pi/agent/project-memory/<project-path-slug>/` | what is true of this project only |
 
-One `MEMORY.md` lives in the **private** dir and indexes both scopes: bare
-`file.md` for private entries, `team/file.md` for project entries.
+**All memory is private.** Both roots live under the agent directory; neither is
+written into the user's repository and neither is shared with anyone. The scope
+split is about *reach* — whether a memory should follow the user everywhere or
+stay with one project — not about audience.
+
+Rationale for keying project memory on a path rather than storing it in the
+repo. A `<project>/.pi/memory/` directory is git-tracked by default, which makes
+every memory a decision about what to commit and what to expose to collaborators,
+and makes "save this" a change to someone's working tree. Keying on the project
+path keeps the agent's writes entirely inside the agent's own directory, so
+saving a memory is never a repository event. The cost is that project memory does
+not travel with a clone; that is the intended trade, because a memory of *this
+user's* work on a project is not a project artifact.
+
+Each scope has its own `MEMORY.md`, and both are injected (§6). A single shared
+index was rejected: with per-project roots it would accumulate an entry for every
+project the user has ever opened and inject all of them into every session, which
+is precisely the cross-project leakage the per-project split exists to prevent.
+
+Project memories are displayed as `project/file.md` everywhere a name is shown to
+a human or to the selector, so one namespace covers both scopes. Their *index*
+pointers are scope-relative (`file.md`), because each index sits in the directory
+it describes.
 
 Repository layout:
 
@@ -104,8 +125,8 @@ filename and type that the selector sees.
 | key | default | behaviour |
 |---|---|---|
 | `enabled` | `true` | master switch |
-| `dir` | `~/.pi/agent/memory` | private scope root |
-| `projectDir` | `.pi/memory` | project scope, relative to cwd; skipped if absent |
+| `dir` | `~/.pi/agent/memory` | user scope root |
+| `projectMemoryRoot` | `~/.pi/agent/project-memory` | parent of the per-project scope roots; `""` switches the project scope off |
 | `selector.enabled` | `true` | tier 2 on/off |
 | `selector.model` | `openai-codex/gpt-5.4-mini` | any id resolvable in the model registry |
 | `selector.maxSelected` | `5` | upper bound per query |
@@ -133,11 +154,27 @@ model at the `read` tool for the rest.
 * **REQ-CFG-3** — A key whose value has the wrong type is ignored and the
   default is used for that key alone.
 * **REQ-CFG-4** — Unknown keys are ignored.
-* **REQ-CFG-5** — `dir` accepts a leading `~` and absolute paths; `~` expands to
-  the user's home directory.
-* **REQ-CFG-6** — `projectDir` is resolved relative to the session cwd. If the
-  resolved directory does not exist, the project scope is skipped entirely; no
-  directory is created there.
+* **REQ-CFG-5** — `dir` and `projectMemoryRoot` accept a leading `~` and
+  absolute paths; `~` expands to the user's home directory.
+* **REQ-CFG-6** — The project scope root is
+  `<projectMemoryRoot>/<slug(projectRoot)>`, where `projectRoot` is the nearest
+  ancestor of the session cwd containing a `.git` entry, or the cwd itself when
+  there is none. `.git` is tested for existence, not for being a directory, so a
+  worktree or submodule — where `.git` is a file — resolves to its own root.
+  Walking up matters: starting the agent in `repo/packages/web` must reach the
+  same memory as starting it in `repo`.
+* **REQ-CFG-6a** — `slug` flattens an absolute path by replacing every run of
+  non-alphanumeric characters with `-` and dropping a trailing `-`, so
+  `/home/u/src/app` becomes `-home-u-src-app`. An empty result becomes `root`.
+  Readability is the point: the directory is browsed by humans. Two paths can in
+  principle collide; a hash suffix would prevent that at the cost of making every
+  name unreadable, which is the worse trade for a directory nobody can otherwise
+  navigate.
+* **REQ-CFG-6b** — `projectMemoryRoot: ""` switches the project scope off
+  entirely: `projectDir` is `undefined`, only the user scope is scanned, and the
+  policy prompt uses its single-scope wording. A `projectMemoryRoot` that
+  resolves the project root onto the user scope root also disables it, since one
+  directory cannot be both scopes.
 * **REQ-CFG-7** — `enabled: false`, or the environment variable
   `PI_MEMORY_DISABLED` set to a non-empty value other than `0`, disables every
   hook: no scan, no injection, no selector.
@@ -173,9 +210,10 @@ model at the `read` tool for the rest.
 * **REQ-SCAN-9** — A scope root that does not exist, or whose walk throws,
   contributes zero files. The overall scan still succeeds.
 * **REQ-SCAN-10** — Files found under the project scope are named with a
-  `team/` prefix in every user-visible and model-visible surface (index
-  pointers, selector listing, `/memory list`), so one namespace covers both
-  scopes.
+  `project/` prefix in every user-visible and model-visible surface (selector
+  listing, `/memory list`, doctor findings), so one namespace covers both
+  scopes. Each entry also carries `relPath`, its name relative to its own scope
+  root — that is what its own `MEMORY.md` points at (REQ-WRITE-14).
 * **REQ-SCAN-11** — Each entry records `mtimeMs` and `modifiedMs`. `modifiedMs`
   is `Date.parse(frontmatter.metadata.modified)` when that parses, else
   `mtimeMs`. Pinned ordering uses `modifiedMs`; scan ordering uses `mtimeMs`:
@@ -413,7 +451,7 @@ replaces or reorders what pi or earlier extensions produced.
 * **REQ-INJECT-1** — The injected block is assembled in this order and appended
   to the incoming system prompt separated by a blank line:
   1. the memory policy prompt (§7),
-  2. the `## MEMORY.md` index section,
+  2. one index section per live scope, user before project,
   3. the pinned block,
   4. the selected-memories block.
   Empty sections are omitted entirely.
@@ -442,10 +480,13 @@ replaces or reorders what pi or earlier extensions produced.
   whitespace, `/` or end becomes `<\/`. A memory file is untrusted input as far
   as block structure goes; neither a path nor a body may close the element
   early.
-* **REQ-INJECT-6** — `MEMORY.md` from the private dir is always injected as
-  `## MEMORY.md` followed by its content. When the file is absent or blank the
-  content is: `` Your MEMORY.md is currently empty. When you save new memories, they will appear here. ``
-* **REQ-INJECT-7** — The index is truncated when it exceeds `indexMaxLines`
+* **REQ-INJECT-6** — Each live scope's `MEMORY.md` is injected under the heading
+  `## MEMORY.md — {scope} memory ({absolute path})`, followed by its content.
+  The heading carries the scope and the path because both files are named
+  `MEMORY.md` and the model must know which one to edit. When a file is absent
+  or blank its content is:
+  `` Your {scope} MEMORY.md is currently empty. When you save new {scope} memories, they will appear here. ``
+* **REQ-INJECT-7** — Each index is truncated when it exceeds `indexMaxLines`
   lines or `indexMaxBytes` bytes. Truncation keeps the first `indexMaxLines`
   lines, then, if still over the byte limit, cuts at the last newline before
   `indexMaxBytes`. A warning line is appended:
@@ -473,15 +514,17 @@ replaces or reorders what pi or earlier extensions produced.
   > This memory file was truncated ({either `{fileMaxBytes} byte limit` or `first {fileMaxLines} lines`}). Use the read tool to view the complete file at: {path}
   ```
 
-* **REQ-INJECT-10** — When no scope root exists on disk — the private dir was
-  not created and the project dir is absent — the extension injects nothing at
-  all, not even the policy prompt, and the turn proceeds with the system prompt
-  exactly as it arrived. Telling a model to write memories to a directory that
-  does not exist is worse than saying nothing.
-* **REQ-INJECT-11** — The private memory dir is created if missing
-  (`mkdir`, failures swallowed). The project dir is never created: a project
-  scope is opt-in, and creating one would leave an empty directory in someone's
-  repo.
+* **REQ-INJECT-10** — When no scope root exists on disk — neither directory was
+  created — the extension injects nothing at all, not even the policy prompt,
+  and the turn proceeds with the system prompt exactly as it arrived. Telling a
+  model to write memories to a directory that does not exist is worse than
+  saying nothing.
+* **REQ-INJECT-11** — Both the user dir and the project dir are created if
+  missing (`mkdir`, failures swallowed). The project dir is created eagerly
+  because it lives under the agent directory: nothing is written into the user's
+  repository, so there is no working tree to pollute, and the alternative — an
+  opt-in directory the user must create by hand — would leave the scope dead on
+  first use and make the policy prompt's "both directories already exist" false.
 
 ---
 
@@ -499,11 +542,11 @@ gets an index entry.
 * **REQ-WRITE-1** — The prompt opens with the header `# Memory` and the
   directory sentences, adapted to two scopes:
 
-  > You have a persistent, file-based memory system with two directories: a private directory at `{privateDir}` and a shared team directory at `{teamDir}`.
+  > You have a persistent, file-based memory system at `{userDir}` (user memory, carried across every project) and `{projectDir}` (project memory, scoped to this project). Both directories already exist — write to them directly with the Write tool (do not run mkdir or check for its existence).
 
-  and, when only the private dir exists:
+  and, when the project scope is off:
 
-  > You have a persistent, file-based memory system at `{privateDir}`. This directory already exists — write to it directly with the Write tool (do not run mkdir or check for its existence).
+  > You have a persistent, file-based memory system at `{userDir}`. This directory already exists — write to it directly with the Write tool (do not run mkdir or check for its existence).
 
 * **REQ-WRITE-2** — Unconditional:
 
@@ -511,26 +554,32 @@ gets an index entry.
   >
   > If the user explicitly asks you to remember something, save it immediately as whichever type fits best. If they ask you to forget something, find and remove the relevant entry.
 
-* **REQ-WRITE-3** — `## Types of memory` is included in full, with the
-  `<types>` block with `user`, `feedback`, `project`,
-  `reference`. Each type carries `<name>`, `<scope>`, `<description>`,
-  `<when_to_save>`, `<how_to_use>` and `<examples>`; `feedback` and `project`
-  additionally carry `<body_structure>`. Header sentence:
+* **REQ-WRITE-3** — The four types `user`, `feedback`, `project`, `reference`
+  are the vocabulary `metadata.type` accepts (§2, REQ-SCAN-3). The policy prompt
+  does not enumerate them at length; the `## Memory scope` section (REQ-WRITE-4)
+  is where they acquire their routing meaning.
 
-  > There are several discrete types of memory that you can store in your memory system. Each type below declares a &lt;scope&gt; of `private`, `team`, or guidance for choosing between the two.
-
-* **REQ-WRITE-4** — Per-type scope routing:
+* **REQ-WRITE-4** — `## Memory scope` states the routing rule. Per-type:
 
   | type | scope |
   |---|---|
-  | `user` | always private |
-  | `feedback` | default to private. Save as team only when the guidance is clearly a project-wide convention that every contributor should follow (e.g., a testing policy, a build invariant), not a personal style preference. |
-  | `project` | private or team, but strongly bias toward team |
-  | `reference` | usually team |
+  | `user` | always user |
+  | `project` | always project |
+  | `feedback` | either — project when the guidance only makes sense inside this project, user when it follows the user everywhere |
+  | `reference` | either, biased to project |
 
-  and the concise restatement:
+  The section leads with the fact that neither directory is shared, so the
+  reader does not carry over the old "who may see this" question, and closes
+  with the portability test that decides the two `either` cases:
 
-  > `user` memories are always private; default `feedback` to private, `project` and `reference` to team. Never write secrets or credentials to the team directory.
+  > The test is portability: if a memory would still be true in an unrelated repository, it belongs in user memory. If it would be wrong or meaningless there, it belongs in project memory.
+
+  It retains one prohibition:
+
+  > - Never write secrets or credentials into either directory.
+
+  This section is emitted only when both scopes are live; with one scope there
+  is nothing to route.
 
 * **REQ-WRITE-5** — `## How to save memories` describes the two-step save:
 
@@ -565,8 +614,10 @@ gets an index entry.
 
   > - Add `pinned: true` under `metadata` only for memories that must apply to every conversation regardless of topic. Pinned memories are injected unconditionally; at most 8 are loaded, newest first.
 
-  `MEMORY.md` is described as living in the private directory and indexing both
-  scopes, with a `team/` path prefix for team memories.
+  When both scopes are live, one further sentence describes the per-scope
+  indexes:
+
+  > Each directory has its own `MEMORY.md` and both are loaded into your context. A memory's pointer goes in the `MEMORY.md` of the directory the memory file itself lives in, written relative to that directory — never point one scope's index at the other scope's files.
 
 * **REQ-WRITE-6** — `## What NOT to save in memory` — five bullets plus a
   closing paragraph. The through-line is that memory is for what the repo cannot
@@ -619,9 +670,11 @@ gets an index entry.
   > - When to use or update a plan instead of memory: If you are about to start a non-trivial implementation task and would like to reach alignment with the user on your approach you should use a Plan rather than saving this information to memory. Similarly, if you already have a plan within the conversation and you have changed your approach persist that change by updating the plan rather than saving a memory.
   > - When to use or update tasks instead of memory: When you need to break your work in current conversation into discrete steps or keep track of your progress use tasks instead of saving to memory. Tasks are great for persisting information about the work that needs to be done in the current conversation, but memory should be reserved for information that will be useful in future conversations.
 
-* **REQ-WRITE-11** — The scope sentence for team writes:
-
-  > - You MUST avoid saving sensitive data within shared team memories. For example, never save API keys or user credentials.
+* **REQ-WRITE-11** — Superseded by REQ-WRITE-4, which carries the surviving
+  prohibition. The original bullet warned against sensitive data in *shared team
+  memories*; with no shared scope left, the warning is restated
+  scope-independently ("never write secrets or credentials into either
+  directory") rather than dropped.
 
 * **REQ-WRITE-12** — The policy prompt is deterministic: given the same config
   and the same directory state it produces byte-identical output.
@@ -635,15 +688,22 @@ invariants make those states *checkable*, and `/memory doctor` (REQ-CMD-3)
 reports them. They are advisory: nothing is auto-corrected and nothing blocks a
 turn.
 
-* **REQ-WRITE-13** — Scope invariant. A memory whose `metadata.type` is `user`
-  must live in the private scope. A `user` memory found under the project scope
-  is reported as a scope violation, because the routing rule is unconditional
-  there: "`user` memories are always private" (REQ-WRITE-4).
-* **REQ-WRITE-14** — Index invariant. Every scanned **unpinned** memory should
-  have a pointer in `MEMORY.md`, and every pointer in `MEMORY.md` should resolve
-  to a scanned memory. Pointers are the markdown link targets (`](target)`) plus
-  any bare `*.md` token on a line. Unindexed memories and dangling pointers are
-  both reported. This is the checkable half of the two-step save (REQ-WRITE-5).
+* **REQ-WRITE-13** — Scope invariant. A memory is reported as a scope violation
+  when its `metadata.type` has an unconditional scope in REQ-WRITE-4 and it is
+  filed elsewhere: a `user` memory outside the user scope, or a `project` memory
+  outside the project scope. `feedback` and `reference` are never reported,
+  because either scope can be correct for them and only the author knows which —
+  a check that fires on a judgement call is noise.
+* **REQ-WRITE-14** — Index invariant, enforced **per scope**. Every scanned
+  **unpinned** memory should have a pointer in the `MEMORY.md` of its own scope,
+  matched on `relPath`, and every pointer in a scope's `MEMORY.md` should resolve
+  to a memory in that same scope. Pointers are the markdown link targets
+  (`](target)`) plus any bare `*.md` token on a line. Unindexed memories and
+  dangling pointers are both reported. A pointer written into the wrong scope's
+  index therefore produces two findings — `unindexed` for the memory and
+  `dangling-pointer` for the stray pointer — which is the correct reading: it is
+  two mistakes, and neither index describes its own directory. This is the
+  checkable half of the two-step save (REQ-WRITE-5).
   Pinned memories are exempt from the "should have a pointer" half by
   REQ-WRITE-19; an *unpinned* memory with no pointer is the dangerous state,
   because it is then reachable only if the selector happens to pick it.
@@ -789,7 +849,7 @@ Memory never blocks work. Every failure degrades to a normal turn.
 
 | subcommand | behaviour |
 |---|---|
-| `list` | scanned files: scope, name, type, pinned state, description, bytes, age |
+| `list` | both scope roots, the project path the project scope is keyed on, then the scanned files: scope, name, type, pinned state, description, bytes, age |
 | `why` | what the last turn injected and why: pinned ids, selected ids, selector verdict, byte totals |
 | `budget` | `maxSessionBytes`, bytes consumed, whether recall is still live, file/index counts |
 | `dry-run <query>` | runs the selector against `<query>` without spending a turn; prints the listing sent, the raw answer, and the resolved selection |

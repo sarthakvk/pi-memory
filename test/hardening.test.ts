@@ -3,7 +3,7 @@
  * and the "no scope root" path.
  */
 
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import {
   assert,
@@ -55,7 +55,7 @@ test("the scan cap holds and keeps the newest files", () => {
   for (let i = 0; i < 40; i++) {
     writeMemory(root, `m${String(i).padStart(2, "0")}.md`, { description: `m${i}`, ageDays: i });
   }
-  const { files, dropped } = scanAll([{ root, scope: "private" }], { ...DEFAULTS, maxFiles: 10 });
+  const { files, dropped } = scanAll([{ root, scope: "user" }], { ...DEFAULTS, maxFiles: 10 });
   assertEqual(files.length, 10);
   assertEqual(dropped, 30);
   assertEqual(files[0].filename, "m00.md", "newest first");
@@ -69,20 +69,25 @@ test("the cap is enforced across both scopes together", () => {
   for (let i = 0; i < 6; i++) writeMemory(proj, `t${i}.md`, { description: `t${i}`, ageDays: i * 2 + 1 });
   const { files, dropped } = scanAll(
     [
-      { root: priv, scope: "private" },
+      { root: priv, scope: "user" },
       { root: proj, scope: "project" },
     ],
     { ...DEFAULTS, maxFiles: 4 },
   );
   assertEqual(files.length, 4);
   assertEqual(dropped, 8);
-  assertDeepEqual(files.map((f) => f.filename), ["p0.md", "team/t0.md", "p1.md", "team/t1.md"]);
+  assertDeepEqual(files.map((f) => f.filename), [
+    "p0.md",
+    "project/t0.md",
+    "p1.md",
+    "project/t1.md",
+  ]);
 });
 
 test("a maxFiles of zero surfaces nothing but does not throw", () => {
   const root = makeTempDir();
   writeMemory(root, "a.md", { description: "a" });
-  const { files, dropped } = scanAll([{ root, scope: "private" }], { ...DEFAULTS, maxFiles: 0 });
+  const { files, dropped } = scanAll([{ root, scope: "user" }], { ...DEFAULTS, maxFiles: 0 });
   assertEqual(files.length, 0);
   assertEqual(dropped, 1);
 });
@@ -91,11 +96,11 @@ test("a maxFiles of zero surfaces nothing but does not throw", () => {
 
 test("with no scope root on disk nothing at all is injected", () => {
   const base = makeTempDir();
-  const s = session({ dir: join(base, "created"), projectDir: "" }, makeTempDir());
+  const s = session({ dir: join(base, "created"), projectMemoryRoot: "" }, makeTempDir());
   // initSession creates the configured dir, so point at one that was never made.
   const gone = join(base, "never", "created");
   assertEqual(existsSync(gone), false, "the fixture path must genuinely not exist");
-  const s2: SessionState = { ...s, dirs: { ...s.dirs, privateDir: gone }, teamDir: undefined };
+  const s2: SessionState = { ...s, dirs: { ...s.dirs, userDir: gone, projectDir: undefined } };
   s2.files = [];
   const out = buildInjection(s2, "BASE PROMPT ONLY", NO_SELECTION);
   assertEqual(out.prompt, "BASE PROMPT ONLY", "the system prompt is returned untouched");
@@ -104,23 +109,41 @@ test("with no scope root on disk nothing at all is injected", () => {
 
 test("a turn with no scope root leaves the prompt byte-identical", async () => {
   const missing = join(makeTempDir(), "gone");
-  const s = session({ dir: missing, projectDir: "" }, makeTempDir());
-  s.dirs = { ...s.dirs, privateDir: join(missing, "deeper", "still-gone") };
-  s.teamDir = undefined;
+  const s = session({ dir: missing, projectMemoryRoot: "" }, makeTempDir());
+  s.dirs = { ...s.dirs, userDir: join(missing, "deeper", "still-gone") };
   const out = await runTurn(s, "SYSTEM", "a query with several words");
   assertEqual(out, "SYSTEM");
 });
 
-test("the private memory dir is created, the project dir never is", () => {
+test("both memory dirs are created on session start, and nothing lands in the project", () => {
   const home = makeTempDir();
-  const privateDir = join(home, "agent", "memory");
+  const userDir = join(home, "agent", "memory");
+  const projectMemoryRoot = join(home, "agent", "project-memory");
   const cwd = makeTempDir();
-  assertEqual(existsSync(privateDir), false);
+  assertEqual(existsSync(userDir), false);
 
-  const s = session({ dir: privateDir, projectDir: ".pi/memory" }, cwd);
-  assertEqual(existsSync(privateDir), true, "the private dir is created on session start");
-  assertEqual(existsSync(join(cwd, ".pi", "memory")), false, "the project dir is never created");
-  assertEqual(s.teamDir, undefined);
+  const s = session({ dir: userDir, projectMemoryRoot }, cwd);
+  assertEqual(existsSync(userDir), true, "the user dir is created on session start");
+  assert(s.dirs.projectDir !== undefined, "the project scope is live");
+  assertEqual(existsSync(s.dirs.projectDir), true, "the project dir is created too");
+  assert(
+    s.dirs.projectDir.startsWith(projectMemoryRoot),
+    "project memory lives under the agent dir, never inside the project",
+  );
+  assertDeepEqual(readdirSync(cwd), [], "nothing at all is written into the project directory");
+});
+
+test("the same project reached from a subdirectory resolves to one memory dir", () => {
+  const home = makeTempDir();
+  const repo = makeTempDir("pi-memory-hrepo-");
+  mkdirSync(join(repo, ".git"));
+  const nested = join(repo, "packages", "web");
+  mkdirSync(nested, { recursive: true });
+  const config = {
+    dir: join(home, "memory"),
+    projectMemoryRoot: join(home, "project-memory"),
+  };
+  assertEqual(session(config, repo).dirs.projectDir, session(config, nested).dirs.projectDir);
 });
 
 // --- degenerate inputs ------------------------------------------------------
@@ -130,7 +153,7 @@ test("an empty file, a frontmatter-only file and a bare delimiter all scan", () 
   writeFile(join(root, "empty.md"), "");
   writeFile(join(root, "fmonly.md"), "---\nname: fmonly\ndescription: only frontmatter\n---\n");
   writeFile(join(root, "dashes.md"), "---\n");
-  const files = scanDir(root, "private", DEFAULTS);
+  const files = scanDir(root, "user", DEFAULTS);
   assertEqual(files.length, 3);
   const byName = new Map(files.map((f) => [f.filename, f]));
   assertEqual(byName.get("empty.md")?.description, null);
@@ -144,7 +167,7 @@ test("CRLF line endings parse", () => {
     join(root, "crlf.md"),
     "---\r\nname: crlf\r\ndescription: windows line endings\r\nmetadata:\r\n  type: user\r\n  pinned: true\r\n---\r\n\r\nbody\r\n",
   );
-  const [f] = scanDir(root, "private", DEFAULTS);
+  const [f] = scanDir(root, "user", DEFAULTS);
   assertEqual(f.name, "crlf");
   assertEqual(f.description, "windows line endings");
   assertEqual(f.type, "user");
@@ -154,7 +177,7 @@ test("CRLF line endings parse", () => {
 test("a deeply nested memory is still found", () => {
   const root = makeTempDir();
   writeMemory(root, join("a", "b", "c", "d", "e", "deep.md"), { description: "deep one" });
-  const files = scanDir(root, "private", DEFAULTS);
+  const files = scanDir(root, "user", DEFAULTS);
   assertEqual(files.length, 1);
   assertEqual(files[0].filename, "a/b/c/d/e/deep.md");
 });
@@ -163,7 +186,7 @@ test("a scope root that is a file, not a directory, is tolerated", () => {
   const parent = makeTempDir();
   const notADir = join(parent, "memory");
   writeFileSync(notADir, "I am a file", "utf8");
-  const { files } = scanAll([{ root: notADir, scope: "private" }], DEFAULTS);
+  const { files } = scanAll([{ root: notADir, scope: "user" }], DEFAULTS);
   assertDeepEqual(files, []);
 });
 
@@ -192,11 +215,11 @@ test("multi-byte content is truncated on a code-point boundary", () => {
 // --- telemetry --------------------------------------------------------------
 
 test("counters accumulate across turns and appear in /memory budget", async () => {
-  const privateDir = join(makeTempDir(), "memory");
-  const s = session({ dir: privateDir, projectDir: "", maxSessionBytes: 100000 }, makeTempDir());
-  writeMemory(privateDir, "pin.md", { name: "pin", description: "pinned", pinned: true, body: "P BODY" });
-  writeMemory(privateDir, "a.md", { name: "a", description: "alpha memory", body: "A BODY" });
-  writeMemory(privateDir, "b.md", { name: "b", description: "beta memory", body: "B BODY" });
+  const userDir = join(makeTempDir(), "memory");
+  const s = session({ dir: userDir, projectMemoryRoot: "", maxSessionBytes: 100000 }, makeTempDir());
+  writeMemory(userDir, "pin.md", { name: "pin", description: "pinned", pinned: true, body: "P BODY" });
+  writeMemory(userDir, "a.md", { name: "a", description: "alpha memory", body: "A BODY" });
+  writeMemory(userDir, "b.md", { name: "b", description: "beta memory", body: "B BODY" });
   rescan(s);
   attachSelector(s, provider(["a.md"]));
 
@@ -217,9 +240,9 @@ test("counters accumulate across turns and appear in /memory budget", async () =
 });
 
 test("counters report files dropped by the cap", () => {
-  const privateDir = join(makeTempDir(), "memory");
-  const s = session({ dir: privateDir, projectDir: "", maxFiles: 2 }, makeTempDir());
-  for (let i = 0; i < 5; i++) writeMemory(privateDir, `m${i}.md`, { description: `m${i}`, ageDays: i });
+  const userDir = join(makeTempDir(), "memory");
+  const s = session({ dir: userDir, projectMemoryRoot: "", maxFiles: 2 }, makeTempDir());
+  for (let i = 0; i < 5; i++) writeMemory(userDir, `m${i}.md`, { description: `m${i}`, ageDays: i });
   rescan(s);
   assertEqual(s.counters.filesScanned, 2);
   assertEqual(s.counters.filesDropped, 3);
@@ -227,9 +250,8 @@ test("counters report files dropped by the cap", () => {
 });
 
 test("a turn with no scope root is counted", async () => {
-  const s = session({ dir: join(makeTempDir(), "x"), projectDir: "" }, makeTempDir());
-  s.dirs = { ...s.dirs, privateDir: join(makeTempDir(), "definitely-not-here") };
-  s.teamDir = undefined;
+  const s = session({ dir: join(makeTempDir(), "x"), projectMemoryRoot: "" }, makeTempDir());
+  s.dirs = { ...s.dirs, userDir: join(makeTempDir(), "definitely-not-here") };
   await runTurn(s, "SYSTEM", "a query with several words");
   assertEqual(s.counters.turnsWithNoScope, 1);
   assertIncludes(renderBudget(s).join("\n"), "1 turns with no scope root");
@@ -238,12 +260,12 @@ test("a turn with no scope root is counted", async () => {
 // --- ordering stability -----------------------------------------------------
 
 test("section order is policy, index, pinned, surfaced", async () => {
-  const privateDir = join(makeTempDir(), "memory");
-  const s = session({ dir: privateDir, projectDir: "" }, makeTempDir());
-  mkdirSync(privateDir, { recursive: true });
-  writeFile(join(privateDir, "MEMORY.md"), "- [A](a.md) — alpha");
-  writeMemory(privateDir, "pin.md", { name: "pin", description: "pinned", pinned: true, body: "P BODY" });
-  writeMemory(privateDir, "a.md", { name: "a", description: "alpha memory", body: "A BODY" });
+  const userDir = join(makeTempDir(), "memory");
+  const s = session({ dir: userDir, projectMemoryRoot: "" }, makeTempDir());
+  mkdirSync(userDir, { recursive: true });
+  writeFile(join(userDir, "MEMORY.md"), "- [A](a.md) — alpha");
+  writeMemory(userDir, "pin.md", { name: "pin", description: "pinned", pinned: true, body: "P BODY" });
+  writeMemory(userDir, "a.md", { name: "a", description: "alpha memory", body: "A BODY" });
   rescan(s);
   attachSelector(s, provider(["a.md"]));
 

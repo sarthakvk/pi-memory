@@ -7,8 +7,8 @@
  */
 
 import { homedir } from "node:os";
-import { isAbsolute, join, resolve } from "node:path";
-import { readFileSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
+import { existsSync, readFileSync } from "node:fs";
 
 export interface SelectorConfig {
   enabled: boolean;
@@ -20,7 +20,7 @@ export interface SelectorConfig {
 export interface MemoryConfig {
   enabled: boolean;
   dir: string;
-  projectDir: string;
+  projectMemoryRoot: string;
   selector: SelectorConfig;
   maxSessionBytes: number;
   maxFiles: number;
@@ -40,7 +40,7 @@ export interface MemoryConfig {
 export const DEFAULTS: MemoryConfig = {
   enabled: true,
   dir: "~/.pi/agent/memory",
-  projectDir: ".pi/memory",
+  projectMemoryRoot: "~/.pi/agent/project-memory",
   selector: {
     enabled: true,
     model: "openai-codex/gpt-5.4-mini",
@@ -60,7 +60,7 @@ export const DEFAULTS: MemoryConfig = {
 
 export const CONFIG_FILENAME = "memory-config.json";
 export const INDEX_FILENAME = "MEMORY.md";
-export const TEAM_PREFIX = "team/";
+export const PROJECT_PREFIX = "project/";
 
 function pickBoolean(v: unknown, fallback: boolean): boolean {
   return typeof v === "boolean" ? v : fallback;
@@ -68,6 +68,14 @@ function pickBoolean(v: unknown, fallback: boolean): boolean {
 
 function pickString(v: unknown, fallback: string): string {
   return typeof v === "string" && v.trim() !== "" ? v : fallback;
+}
+
+/**
+ * Like `pickString`, but an explicit empty string is honoured rather than
+ * treated as unset. That is how `projectMemoryRoot` is switched off.
+ */
+function pickPath(v: unknown, fallback: string): string {
+  return typeof v === "string" ? v.trim() : fallback;
 }
 
 function pickPositiveInt(v: unknown, fallback: number): number {
@@ -98,7 +106,10 @@ export function mergeConfig(raw: unknown): MemoryConfig {
   return {
     enabled: pickBoolean(o.enabled, DEFAULTS.enabled),
     dir: pickString(o.dir, DEFAULTS.dir),
-    projectDir: pickString(o.projectDir, DEFAULTS.projectDir),
+    projectMemoryRoot: pickPath(
+      o.projectMemoryRoot,
+      DEFAULTS.projectMemoryRoot,
+    ),
     selector: {
       enabled: pickBoolean(rawSelector.enabled, DEFAULTS.selector.enabled),
       model: pickString(rawSelector.model, DEFAULTS.selector.model),
@@ -150,34 +161,82 @@ export function disabledByEnv(env: NodeJS.ProcessEnv = process.env): boolean {
   return typeof v === "string" && v !== "" && v !== "0";
 }
 
-export interface ResolvedDirs {
-  /** Absolute private scope root. Always defined; may not exist on disk yet. */
-  privateDir: string;
-  /** Absolute project scope root, or undefined when the project scope is off. */
-  projectDir: string | undefined;
-  /** Absolute path to MEMORY.md, which always lives in the private dir. */
-  indexPath: string;
+/**
+ * The directory that identifies "this project": the nearest ancestor of `cwd`
+ * containing a `.git` entry, or `cwd` itself when there is none.
+ *
+ * Walking up matters because project memory is keyed on this path. Starting the
+ * agent in `repo/packages/web` must reach the same memory as starting it in
+ * `repo`, otherwise every subdirectory silently gets its own empty store.
+ * `.git` is tested with `existsSync`, not `isDirectory`, so a worktree or
+ * submodule — where `.git` is a file — is recognised too.
+ */
+export function findProjectRoot(cwd: string): string {
+  let dir = resolve(cwd);
+  for (;;) {
+    if (existsSync(join(dir, ".git"))) return dir;
+    const parent = dirname(dir);
+    if (parent === dir) return resolve(cwd);
+    dir = parent;
+  }
 }
 
 /**
- * Resolve scope roots. `projectDir` is relative to cwd unless absolute; the
- * caller decides whether it exists.
+ * Flatten an absolute path into a single directory name: every run of
+ * non-alphanumeric characters becomes `-`, so `/home/u/src/app` becomes
+ * `-home-u-src-app`.
+ *
+ * Readability is the point — someone listing `project-memory/` should recognise
+ * their repos. Two different paths can in principle collide (`/a/b-c` and
+ * `/a-b/c`); a hash suffix would prevent it at the cost of making every name
+ * unreadable, which is a bad trade for a directory humans browse.
+ */
+export function projectSlug(projectRoot: string): string {
+  const slug = resolve(projectRoot)
+    .replace(/[^A-Za-z0-9]+/g, "-")
+    .replace(/-+$/, "");
+  return slug === "" ? "root" : slug;
+}
+
+export interface ResolvedDirs {
+  /** Absolute user scope root. Always defined; may not exist on disk yet. */
+  userDir: string;
+  /** Absolute project scope root, or undefined when the project scope is off. */
+  projectDir: string | undefined;
+  /** The path the project scope is keyed on — the git root, or cwd. */
+  projectRoot: string | undefined;
+}
+
+// Each scope's MEMORY.md is `<root>/MEMORY.md`. It is derived from the live
+// roots at injection time rather than stored here, so there is one source of
+// truth for which indexes exist.
+
+/**
+ * Resolve both scope roots. Project memory lives under
+ * `<projectMemoryRoot>/<project-path-slug>` — inside the agent directory, not
+ * inside the repo, so nothing is written into the user's project and nothing is
+ * shared. An empty `projectMemoryRoot` switches the project scope off.
  */
 export function resolveDirs(
   config: MemoryConfig,
   cwd: string,
   home = homedir(),
 ): ResolvedDirs {
-  const privateDir = resolve(expandHome(config.dir, home));
-  const projectRaw = expandHome(config.projectDir, home);
-  const projectDir = config.projectDir
-    ? isAbsolute(projectRaw)
-      ? projectRaw
-      : resolve(cwd, projectRaw)
+  const userDir = resolve(expandHome(config.dir, home));
+  const projectRoot = config.projectMemoryRoot
+    ? findProjectRoot(cwd)
     : undefined;
+  const resolved =
+    projectRoot === undefined
+      ? undefined
+      : join(
+          resolve(expandHome(config.projectMemoryRoot, home)),
+          projectSlug(projectRoot),
+        );
+  const projectDir = resolved === userDir ? undefined : resolved;
   return {
-    privateDir,
-    projectDir: projectDir === privateDir ? undefined : projectDir,
-    indexPath: join(privateDir, INDEX_FILENAME),
+    userDir,
+    projectDir,
+    projectRoot: projectDir === undefined ? undefined : projectRoot,
   };
 }
