@@ -1,5 +1,7 @@
 # Repository Guide
 
+This repository contains a pi memory extension with a TypeScript runtime, prompt pipeline, and headless test suite.
+
 ## Runtime And Checks
 
 - Use Node >= 22.18: the repo executes `.ts` files directly via native type stripping. Keep TypeScript erasable and relative imports explicit (`./module.ts`); there is no compile step.
