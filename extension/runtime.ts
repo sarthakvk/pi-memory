@@ -12,6 +12,7 @@ import { join } from "node:path";
 
 import {
   disabledByEnv,
+  INDEX_FILENAME,
   loadConfig,
   resolveDirs,
   type MemoryConfig,
@@ -81,8 +82,6 @@ export function newCounters(): Counters {
 export interface SessionState {
   config: MemoryConfig;
   dirs: ResolvedDirs;
-  /** Project scope root, present only when it exists on disk. */
-  teamDir: string | undefined;
   files: MemoryFile[];
   dropped: number;
   budget: SessionBudget;
@@ -114,11 +113,21 @@ export function liveRoots(
   s: SessionState,
 ): Array<{ root: string; scope: MemoryScope }> {
   const roots: Array<{ root: string; scope: MemoryScope }> = [];
-  if (existsSync(s.dirs.privateDir))
-    roots.push({ root: s.dirs.privateDir, scope: "private" });
-  if (s.teamDir && existsSync(s.teamDir))
-    roots.push({ root: s.teamDir, scope: "project" });
+  if (existsSync(s.dirs.userDir))
+    roots.push({ root: s.dirs.userDir, scope: "user" });
+  if (s.dirs.projectDir && existsSync(s.dirs.projectDir))
+    roots.push({ root: s.dirs.projectDir, scope: "project" });
   return roots;
+}
+
+/** The index file of each live scope, in the same order as `liveRoots`. */
+function liveIndexes(
+  s: SessionState,
+): Array<{ indexPath: string; scope: MemoryScope }> {
+  return liveRoots(s).map(({ root, scope }) => ({
+    indexPath: join(root, INDEX_FILENAME),
+    scope,
+  }));
 }
 
 export function rescan(s: SessionState): void {
@@ -142,16 +151,15 @@ export function initSession(
   if (!config.enabled || disabledByEnv()) return undefined;
 
   const dirs = resolveDirs(config, cwd);
-  ensureDir(dirs.privateDir);
-  const teamDir =
-    dirs.projectDir && existsSync(dirs.projectDir)
-      ? dirs.projectDir
-      : undefined;
+  ensureDir(dirs.userDir);
+  // Project memory lives under the agent directory, not inside the repo, so
+  // creating it eagerly leaves nothing behind in the user's project and makes
+  // the scope reliably writable from the first turn.
+  if (dirs.projectDir) ensureDir(dirs.projectDir);
 
   const s: SessionState = {
     config,
     dirs,
-    teamDir,
     files: [],
     dropped: 0,
     budget: new SessionBudget(config.maxSessionBytes),
@@ -174,7 +182,7 @@ export const NO_SELECTION: SelectorRunResult = {
 
 interface PreparedInjection {
   policy: string;
-  index: string;
+  indexes: string[];
   indexTruncated: boolean;
   pinned: string;
   pinnedFiles: MemoryFile[];
@@ -187,12 +195,14 @@ interface PreparedInjection {
 /** Build the same blocks used for a turn, without charging or marking memory. */
 function prepareInjection(s: SessionState, selection: SelectorRunResult): PreparedInjection {
   const policy = buildPolicyPrompt({
-    privateDir: s.dirs.privateDir,
-    teamDir: s.teamDir,
+    userDir: s.dirs.userDir,
+    projectDir: s.dirs.projectDir,
     indexMaxLines: s.config.indexMaxLines,
     maxPinned: s.config.maxPinned,
   });
-  const index = indexSection(s.dirs.indexPath, s.config);
+  const indexes = liveIndexes(s).map(({ indexPath, scope }) =>
+    indexSection(indexPath, scope, s.config),
+  );
   const { candidates } = pinnedCandidates(s.files, s.config.maxPinned);
   const pinned = pinnedBlockFor(candidates, {
     fileMaxLines: s.config.fileMaxLines,
@@ -212,9 +222,9 @@ function prepareInjection(s: SessionState, selection: SelectorRunResult): Prepar
 
   return {
     policy,
-    index: index.section,
-    indexTruncated: Boolean(
-      index.truncation?.wasLineTruncated || index.truncation?.wasByteTruncated,
+    indexes: indexes.map((i) => i.section),
+    indexTruncated: indexes.some(
+      (i) => i.truncation?.wasLineTruncated || i.truncation?.wasByteTruncated,
     ),
     pinned: pinned.block,
     pinnedFiles: candidates,
@@ -238,7 +248,7 @@ export function buildPreviewPrompt(
   const prepared = prepareInjection(s, selection);
   return assemble("", {
     policy: prepared.policy,
-    index: prepared.index,
+    indexes: prepared.indexes,
     pinned: prepared.pinned,
     surfaced: prepared.surfaced,
   });
@@ -332,7 +342,7 @@ export function buildInjection(
   return {
     prompt: assemble(systemPrompt, {
       policy: prepared.policy,
-      index: prepared.index,
+      indexes: prepared.indexes,
       pinned: prepared.pinned,
       surfaced: prepared.surfaced,
     }),
@@ -368,15 +378,17 @@ function ageLabel(mtimeMs: number, now = Date.now()): string {
 }
 
 export function renderList(s: SessionState, now = Date.now()): string[] {
-  if (s.files.length === 0) {
-    return [
-      "No memories found.",
-      `  private: ${s.dirs.privateDir}`,
-      `  team:    ${s.teamDir ?? "(none)"}`,
-    ];
-  }
+  // The project key is worth printing: when project memory looks wrong, the
+  // first question is always which project path it resolved to.
+  const scopeLines = [
+    `  user:    ${s.dirs.userDir}`,
+    `  project: ${s.dirs.projectDir ?? "(none)"}${s.dirs.projectRoot ? `  (for ${s.dirs.projectRoot})` : ""}`,
+  ];
+  if (s.files.length === 0) return ["No memories found.", ...scopeLines];
+
   const lines: string[] = [
-    `${s.files.length} memories (private: ${s.dirs.privateDir}${s.teamDir ? `, team: ${s.teamDir}` : ""})`,
+    `${s.files.length} memor${s.files.length === 1 ? "y" : "ies"}`,
+    ...scopeLines,
   ];
   let totalBytes = 0;
   for (const f of s.files) {
@@ -483,9 +495,7 @@ export async function renderDryRun(
 /** Write-path invariants. Never modifies a file. */
 export function renderDoctor(s: SessionState): string[] {
   rescan(s);
-  return renderFindings(
-    diagnose({ files: s.files, indexPath: s.dirs.indexPath }),
-  );
+  return renderFindings(diagnose({ files: s.files, indexes: liveIndexes(s) }));
 }
 
 export const USAGE = [

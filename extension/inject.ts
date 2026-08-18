@@ -4,7 +4,7 @@
 
 import { readFileSync } from "node:fs";
 import { readBudgeted, utf8Length } from "./read.ts";
-import type { MemoryFile } from "./scan.ts";
+import type { MemoryFile, MemoryScope } from "./scan.ts";
 import { INDEX_FILENAME } from "./config.ts";
 
 const MS_PER_DAY = 86400000;
@@ -168,17 +168,27 @@ export function truncateWithWarning(
   };
 }
 
-/** Stand-in content when the index is missing or blank. */
-export const EMPTY_INDEX_TEXT = `Your ${INDEX_FILENAME} is currently empty. When you save new memories, they will appear here.`;
+/** Stand-in content when an index is missing or blank. */
+export function emptyIndexText(scope: MemoryScope): string {
+  return `Your ${scope} ${INDEX_FILENAME} is currently empty. When you save new ${scope} memories, they will appear here.`;
+}
+
+/** Heading for one scope's index. Both files are named MEMORY.md, so the
+ * heading carries the path that distinguishes them. */
+export function indexHeading(scope: MemoryScope, indexPath: string): string {
+  return `## ${INDEX_FILENAME} — ${scope} memory (${indexPath})`;
+}
 
 /**
- * The `## MEMORY.md` section. A missing or blank index still produces the
+ * One scope's index section. A missing or blank index still produces the
  * section, carrying the "currently empty" sentence.
  */
 export function indexSection(
   indexPath: string,
+  scope: MemoryScope,
   opts: { indexMaxLines: number; indexMaxBytes: number },
 ): { section: string; truncation: TruncationResult | undefined } {
+  const heading = indexHeading(scope, indexPath);
   let raw = "";
   try {
     raw = readFileSync(indexPath, "utf8");
@@ -186,11 +196,11 @@ export function indexSection(
     raw = "";
   }
   if (raw.trim() === "") {
-    return { section: [`## ${INDEX_FILENAME}`, "", EMPTY_INDEX_TEXT].join("\n"), truncation: undefined };
+    return { section: [heading, "", emptyIndexText(scope)].join("\n"), truncation: undefined };
   }
   const truncation = truncateWithWarning(raw, "index", opts.indexMaxLines, opts.indexMaxBytes);
   return {
-    section: [`## ${INDEX_FILENAME}`, "", truncation.content].join("\n"),
+    section: [heading, "", truncation.content].join("\n"),
     truncation,
   };
 }
@@ -250,10 +260,19 @@ export function readForSurfacing(
   return out;
 }
 
-/** Render surfaced memories as one block. */
+/** Render surfaced memories as one tagged block. */
 export function buildSurfacedBlock(memories: SurfacedMemory[]): string {
   if (memories.length === 0) return "";
-  return memories.map((m) => `${m.header}\n${m.content}`).join("\n\n");
+  return memories
+    .map((m) => {
+      const content = `${m.header}\n${m.content}`;
+      return (
+        `<memory path="${sanitizeAttr(m.path)}">\n` +
+        `${scrubCloseTag("memory", content)}\n` +
+        `</memory>`
+      );
+    })
+    .join("\n\n");
 }
 
 // ---------------------------------------------------------------------------
@@ -262,7 +281,8 @@ export function buildSurfacedBlock(memories: SurfacedMemory[]): string {
 
 export interface InjectionParts {
   policy: string;
-  index: string;
+  /** One index section per live scope, in scope order. */
+  indexes: string[];
   pinned: string;
   surfaced: string;
 }
@@ -272,7 +292,7 @@ export interface InjectionParts {
  * blank lines. Never replaces or reorders what came in.
  */
 export function assemble(systemPrompt: string, parts: Partial<InjectionParts>): string {
-  const blocks = [parts.policy, parts.index, parts.pinned, parts.surfaced].filter(
+  const blocks = [parts.policy, ...(parts.indexes ?? []), parts.pinned, parts.surfaced].filter(
     (b): b is string => typeof b === "string" && b.trim() !== "",
   );
   if (blocks.length === 0) return systemPrompt;

@@ -9,15 +9,24 @@ source comments and executable tests.
 
 Three retrieval tiers:
 
-| Tier | Trigger | Content |
-|---|---|---|
-| pinned | every turn, unconditional | files with `metadata.pinned: true` |
-| selected | every user message, LLM selector | <= 5 files chosen from name + type + description |
-| on-demand | the model's own judgement | any file, via the `read` tool |
+| Tier      | Trigger                          | Content                                          |
+| --------- | -------------------------------- | ------------------------------------------------ |
+| pinned    | every turn, unconditional        | files with `metadata.pinned: true`               |
+| selected  | every user message, LLM selector | <= 5 files chosen from name + type + description |
+| on-demand | the model's own judgement        | any file, via the `read` tool                    |
 
-Two scopes: `~/.pi/agent/memory/` (private) and `<project>/.pi/memory/` (team,
-git-tracked). One `MEMORY.md` in the private dir indexes both, `team/`-prefixed
-for project entries.
+Two scopes, both private to the user — nothing is shared and nothing is written
+into the project itself:
+
+| Scope   | Directory                                         | Holds                                |
+| ------- | ------------------------------------------------- | ------------------------------------ |
+| user    | `~/.pi/agent/memory/`                             | what stays true across every project |
+| project | `~/.pi/agent/project-memory/<project-path-slug>/` | what is true of this project only    |
+
+The project is identified by the nearest ancestor of the cwd containing `.git`,
+falling back to the cwd, so a subdirectory of a repo reaches the same memory as
+its root. Each scope has its own `MEMORY.md`; both are injected. Project entries
+are shown as `project/file.md` in `/memory list` and the selector listing.
 
 ## Install
 
@@ -37,6 +46,7 @@ is optional; omitted keys use the built-in defaults.
 /memory why              what the last turn injected and why
 /memory budget           session byte budget and whether recall is still live
 /memory dry-run <query>  run the selector without spending a turn
+/memory doctor           write-path invariants: scope routing, index drift, names, duplicates
 ```
 
 ## Tests

@@ -21,7 +21,7 @@ test("the walk is recursive and markdown-only", () => {
   writeFile(join(root, "notes.txt"), "ignored");
   writeFile(join(root, "sub/readme.rst"), "ignored");
 
-  const files = scanDir(root, "private", SCAN_OPTS);
+  const files = scanDir(root, "user", SCAN_OPTS);
   assertDeepEqual(files.map((f) => f.filename).sort(), ["a.md", "sub/b.md", "sub/deep/c.md"]);
 });
 
@@ -36,7 +36,7 @@ test("frontmatter description wins over the body fallback", () => {
   const root = makeTempDir();
   writeMemory(root, "with.md", { description: "from frontmatter", body: "# from body" });
   writeMemory(root, "without.md", { name: "n", body: "# from body" });
-  const files = scanDir(root, "private", SCAN_OPTS);
+  const files = scanDir(root, "user", SCAN_OPTS);
   const byName = new Map(files.map((f) => [f.filename, f]));
   assertEqual(byName.get("with.md")?.description, "from frontmatter");
   assertEqual(byName.get("without.md")?.description, "from body");
@@ -61,7 +61,7 @@ test("MEMORY.md is excluded at every depth and every scope", () => {
 
   const { files } = scanAll(
     [
-      { root: priv, scope: "private" },
+      { root: priv, scope: "user" },
       { root: proj, scope: "project" },
     ],
     DEFAULTS,
@@ -79,10 +79,10 @@ test("results are newest-first by mtime and capped at maxFiles", () => {
   writeMemory(root, "mid.md", { description: "mid", ageDays: 10 });
   writeMemory(root, "new.md", { description: "new", ageDays: 0 });
 
-  const all = scanAll([{ root, scope: "private" }], DEFAULTS);
+  const all = scanAll([{ root, scope: "user" }], DEFAULTS);
   assertDeepEqual(all.files.map((f) => f.filename), ["new.md", "mid.md", "old.md"]);
 
-  const capped = scanAll([{ root, scope: "private" }], { ...DEFAULTS, maxFiles: 2 });
+  const capped = scanAll([{ root, scope: "user" }], { ...DEFAULTS, maxFiles: 2 });
   assertDeepEqual(capped.files.map((f) => f.filename), ["new.md", "mid.md"]);
   assertEqual(capped.dropped, 1);
 });
@@ -94,7 +94,7 @@ test("the scan read budget bounds what frontmatter is seen", () => {
     join(root, "late.md"),
     ["padding", "padding", "padding", "---", "description: never seen", "---", "body"].join("\n"),
   );
-  const files = scanDir(root, "private", { scanMaxLines: 3, scanMaxBytes: 65536 });
+  const files = scanDir(root, "user", { scanMaxLines: 3, scanMaxBytes: 65536 });
   assertEqual(files[0].description, "padding", "only the first 3 lines were read");
 });
 
@@ -113,7 +113,7 @@ test("a malformed file is scanned, not skipped", () => {
   const root = makeTempDir();
   writeFile(join(root, "broken.md"), "---\nthis: [is: not: yaml\n---\nsome body\n");
   writeMemory(root, "fine.md", { description: "fine" });
-  const files = scanDir(root, "private", SCAN_OPTS);
+  const files = scanDir(root, "user", SCAN_OPTS);
   assertEqual(files.length, 2, "the malformed file must not abort the scan");
   const broken = files.find((f) => f.filename === "broken.md");
   assert(broken !== undefined, "broken.md is present");
@@ -126,7 +126,7 @@ test("a missing root contributes nothing and does not throw", () => {
   writeMemory(root, "a.md", { description: "a" });
   const { files } = scanAll(
     [
-      { root, scope: "private" },
+      { root, scope: "user" },
       { root: join(root, "does-not-exist"), scope: "project" },
     ],
     DEFAULTS,
@@ -134,21 +134,23 @@ test("a missing root contributes nothing and does not throw", () => {
   assertEqual(files.length, 1);
 });
 
-test("project-scope files are namespaced under team/", () => {
+test("project-scope files are namespaced under project/", () => {
   const priv = makeTempDir();
   const proj = makeTempDir();
-  writeMemory(priv, "p.md", { description: "private" });
-  writeMemory(proj, "sub/t.md", { description: "team" });
+  writeMemory(priv, "p.md", { description: "a user memory" });
+  writeMemory(proj, "sub/t.md", { description: "a project memory" });
   const { files } = scanAll(
     [
-      { root: priv, scope: "private" },
+      { root: priv, scope: "user" },
       { root: proj, scope: "project" },
     ],
     DEFAULTS,
   );
   const names = files.map((f) => f.filename).sort();
-  assertDeepEqual(names, ["p.md", "team/sub/t.md"]);
-  assertEqual(files.find((f) => f.filename.startsWith("team/"))?.scope, "project");
+  assertDeepEqual(names, ["p.md", "project/sub/t.md"]);
+  const projectFile = files.find((f) => f.filename.startsWith("project/"));
+  assertEqual(projectFile?.scope, "project");
+  assertEqual(projectFile?.relPath, "sub/t.md", "relPath is what that scope's own index points at");
 });
 
 test("modifiedMs prefers metadata.modified when it parses", () => {
@@ -161,7 +163,7 @@ test("modifiedMs prefers metadata.modified when it parses", () => {
     join(root, "baddate.md"),
     ["---", "name: baddate", "metadata:", "  modified: not-a-date", "---", "", "body"].join("\n"),
   );
-  const files = scanDir(root, "private", SCAN_OPTS);
+  const files = scanDir(root, "user", SCAN_OPTS);
   const dated = files.find((f) => f.filename === "dated.md");
   const bad = files.find((f) => f.filename === "baddate.md");
   assertEqual(dated?.modifiedMs, Date.parse("2020-01-02T00:00:00Z"));
@@ -178,7 +180,7 @@ test("an unreadable file is skipped without breaking the scan", () => {
   } catch {
     return; // cannot exercise this without permission control
   }
-  const files = scanDir(root, "private", SCAN_OPTS);
+  const files = scanDir(root, "user", SCAN_OPTS);
   chmodSync(denied, 0o644);
   // Running as root defeats chmod; only assert the scan survived.
   assert(files.some((f) => f.filename === "ok.md"), "the readable file is still scanned");
@@ -192,7 +194,7 @@ test("pinned candidates are newest-first by modifiedMs and capped", () => {
   writeMemory(root, "unpinned.md", { description: "u" });
   writeMemory(root, "bad.md", { description: "b", pinned: "sometimes" });
 
-  const { files } = scanAll([{ root, scope: "private" }], DEFAULTS);
+  const { files } = scanAll([{ root, scope: "user" }], DEFAULTS);
   const { candidates, pinnedCount, malformedCount } = pinnedCandidates(files, DEFAULTS.maxPinned);
   assertEqual(pinnedCount, 12);
   assertEqual(malformedCount, 1);
@@ -214,6 +216,6 @@ test("directory symlinks are not followed", () => {
   } catch {
     return; // symlinks unavailable
   }
-  const files = scanDir(root, "private", SCAN_OPTS);
+  const files = scanDir(root, "user", SCAN_OPTS);
   assertDeepEqual(files.map((f) => f.filename), ["inside.md"]);
 });
