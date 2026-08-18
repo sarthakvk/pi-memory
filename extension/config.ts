@@ -44,7 +44,7 @@ export const DEFAULTS: MemoryConfig = {
   projectMemoryRoot: "~/.pi/agent/project-memory",
   selector: {
     enabled: true,
-    model: "openai-codex/gpt-5.4-mini",
+    model: "openai-codex/gpt-5.6-luna",
     maxSelected: 5,
     timeoutMs: 5000,
   },
