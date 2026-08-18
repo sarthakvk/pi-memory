@@ -260,10 +260,19 @@ export function readForSurfacing(
   return out;
 }
 
-/** Render surfaced memories as one block. */
+/** Render surfaced memories as one tagged block. */
 export function buildSurfacedBlock(memories: SurfacedMemory[]): string {
   if (memories.length === 0) return "";
-  return memories.map((m) => `${m.header}\n${m.content}`).join("\n\n");
+  return memories
+    .map((m) => {
+      const content = `${m.header}\n${m.content}`;
+      return (
+        `<memory path="${sanitizeAttr(m.path)}">\n` +
+        `${scrubCloseTag("memory", content)}\n` +
+        `</memory>`
+      );
+    })
+    .join("\n\n");
 }
 
 // ---------------------------------------------------------------------------
