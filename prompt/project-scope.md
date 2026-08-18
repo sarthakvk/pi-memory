@@ -1,7 +1,5 @@
 ## Memory scope
 
-Both directories are private to this user — nothing you write is shared with anyone else. The split is about *reach*, not audience: whether a memory should follow the user everywhere or stay with this project.
-
 - **Project memory** (`__PROJECT_DIR__`) — anything true of this project and not of others: its goals and constraints, decisions and their reasons, and guidance the user gave about working in this codebase. `project` and `reference` memories belong here, and so does `feedback` that only makes sense inside this project.
 - **User memory** (`__USER_DIR__`) — anything about the user or their system that stays true across every project: who they are, how they want you to work in general, and their tools and environment. `user` memories always live here.
 
